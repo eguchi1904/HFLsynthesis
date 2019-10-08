@@ -1,0 +1,39 @@
+(*  "easy" formula (can solve by z3)   *)
+type sort = [`BoolS | `IntS | `DataS of Id.t | `SetS of sort  ]
+
+type t =
+  [ `Bool of bool
+  | `Int of int
+  (* set literal [1, 2, 3] *)
+  | `Set of sort * (t list) 
+  (* input variable *)        
+  | `Var of sort * Id.t
+  (* datatype constructor *)
+  | `Cons of sort * Id.t * (t list) 
+  | `UF of sort * Id.t * (t list)   (* uninterpreted function *)
+          
+  (* 以下、解釈付きの演算 *)
+  | `If of t * t * t
+  | `Times of t * t
+  | `Plus of t * t
+  | `Minus of t * t
+  | `Eq of t * t
+  | `Neq of t * t
+  | `Lt of t * t
+  | `Le of t * t
+  | `Gt of t * t
+  | `Ge of t * t
+  | `And of t * t
+  | `Or of t * t
+  | `Implies of t * t
+  | `Iff of t * t
+  | `Union of t * t
+  | `Intersect of t * t
+  | `Diff of t * t
+  | `Member of t * t
+  | `Subset of t * t
+  | `Neg of t 
+  | `Not of t
+  ]
+
+          

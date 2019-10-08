@@ -1,0 +1,5 @@
+include Formula
+      
+let is_valid (t:t) =
+  let z3_exp, _ = UseZ3.convert t in
+  UseZ3.is_valid z3_exp
