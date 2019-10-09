@@ -1,8 +1,12 @@
-type t = private Hfl.clause list
+type t
 
 val empty :t
 
-val add: t -> Hfl.clause -> t
+val add_condition: Hfl.clause -> t -> t
+
+val add_bind: Id.t -> Hfl.sort -> t -> t
+
+val find_heads: Hfl.baseSort -> t -> HeadCandidates.t
 
               
           

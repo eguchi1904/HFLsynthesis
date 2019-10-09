@@ -17,10 +17,13 @@ let is_baseSort (sort:sort) =
 type clause = (*\psi(x,y): predicate type formula *)
   |Base of BaseLogic.t
   |Abs of ((Id.t * sort) list * clause)(* 1階の場合は使わない *)           
-  |App of Id.t * clause list
+  |App of {head:Id.t;
+           params:clause list;  (*否定が取れるpredicateのみをapplyできる。とする. *)
+           args:clause list}
   |Unknown of Id.t * sort  (* unknown predicate *)
   |And of clause * clause
   |Or of clause * clause
+
 
        
 type qhorn 
@@ -30,7 +33,7 @@ type qhorn
 
              
 type fhorn                      
-  = {params:(Id.t * sort) list (* パラメータ分,便宜的に分ける *)
+  = {params:(Id.t * sort) list (* predicateパラメータ分,実装上便宜的に分ける *)
     ;args:(Id.t * sort) list
     ;body: qhorn}
 
@@ -47,7 +50,7 @@ sig
 
   val add: t -> Id.t -> fixOp option -> fhorn -> unit
 
-  val find: t -> Id.t -> (fixOp option * fhorn)
+  val find: t -> Id.t -> (fixOp option * fhorn) option
     
 end
   = struct
@@ -57,16 +60,14 @@ end
   let make () = Array.make 1000 None
 
   let add arr id fix_op_opt horn =
-    arr.(Id.to_int id) <- Some (fix_op_opt, horn)
 
+    arr.(Id.to_int id) <- Some (fix_op_opt, horn)
   let find arr id =
-    match arr.(Id.to_int id) with
-    |Some s -> s
-    |None -> assert false
+    arr.(Id.to_int id) 
     
 end
 
-  
+
 type t = Equations.t * fhorn
   
                
