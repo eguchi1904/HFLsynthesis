@@ -19,16 +19,17 @@ let inline_equation_of_leaf ep id =
   |Some (_, {params = _; args = []; body = _}) ->
     invalid_arg "not yet implement"
   |None -> None
-    
-let hfl_clause_of_leaf ep id sort =
-  let open BaseLogic in
-  let phi =
-    Hfl.Base (Eq (Var (Hfl.2baseLogic_sort sort) id)
-                 (Var (Hfl.2baseLogic_sort sort) Id.valueVar_id))
-  in
-  match inline_equation_of_leaf ep id with
-  |Some c -> Let ([], [c;phi])
-  |None -> Let ([], [phi])
+
+         
+(* let hfl_clause_of_leaf ep id sort =　 (\* これ毎回計算するの無駄感あるな *\) *)
+(*   let open BaseLogic in *)
+(*   let phi = *)
+(*     Hfl.Base (Eq (Var (Hfl.2baseLogic_sort sort) id) *)
+(*                  (Var (Hfl.2baseLogic_sort sort) Id.valueVar_id)) *)
+(*   in *)
+(*   match inline_equation_of_leaf ep id with *)
+(*   |Some c -> Let ([], [c;phi]) *)
+(*   |None -> Let ([], [phi]) *)
                
 
                
@@ -45,13 +46,13 @@ let gen_leaf ep penv (scalar_heads:(Id.t * Hfl.sort) list) spec =
        )
   
   
-let rec gen_e ep penv sort spec dmax = 
-  let HeadCandidates.{scalar = scalar_heads; func = func_heads}
-    =  PathEnv.find_heads (Hfl.return_sort sort) penv
-  in
-  Seq.concat_map
-    (Seq.of_list head_candi_list)
-    ~f:(fun (id, sort) ->
+(* let rec gen_e ep penv sort spec dmax =  *)
+(*   let HeadCandidates.{scalar = scalar_heads; func = func_heads} *)
+(*     =  PathEnv.find_heads (Hfl.return_sort sort) penv *)
+(*   in *)
+(*   Seq.concat_map *)
+(*     (Seq.of_list head_candi_list) *)
+(*     ~f:(fun (id, sort) -> *)
       
     
 
