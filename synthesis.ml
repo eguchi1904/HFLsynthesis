@@ -21,15 +21,15 @@ let inline_equation_of_leaf ep id =
   |None -> None
 
          
-(* let hfl_clause_of_leaf ep id sort =　 (\* これ毎回計算するの無駄感あるな *\) *)
-(*   let open BaseLogic in *)
-(*   let phi = *)
-(*     Hfl.Base (Eq (Var (Hfl.2baseLogic_sort sort) id) *)
-(*                  (Var (Hfl.2baseLogic_sort sort) Id.valueVar_id)) *)
-(*   in *)
-(*   match inline_equation_of_leaf ep id with *)
-(*   |Some c -> Let ([], [c;phi]) *)
-(*   |None -> Let ([], [phi]) *)
+let hfl_clause_of_leaf ep id sort = (* これ毎回計算するの無駄感あるな *)
+let open BaseLogic in
+  let phi =
+    `Base (Eq ((Var ((Hfl.to_baseLogic_sort sort), id)),
+           (Var ((Hfl.to_baseLogic_sort sort), Id.valueVar_id))))
+  in
+  match inline_equation_of_leaf ep id with
+  |Some c -> Let ([], [c;phi])
+  |None -> Let ([], [phi])
                
 
                

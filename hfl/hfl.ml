@@ -1,9 +1,9 @@
 type baseSort = [`BoolS | `IntS | `DataS of Id.t | `SetS of baseSort]
 type sort = [baseSort | `FunS of (sort list * baseSort)]
 
-type topSort = [ `BoolS | `FunS of sort list * [`BoolS] ]
+type topSort = [ `BoolS | `FunS of (sort list * [`BoolS ]) ] (* formulaのtoplevelの型 *)
 type abstSort = [`FunS of sort list * [`BoolS] ]
-             
+              
 let return_sort (sort:sort) :baseSort=
   match sort with
   | `FunS (_, rs) -> rs
@@ -16,6 +16,13 @@ let is_baseSort (sort:sort) =
   match sort with
   | `FunS _ -> false
   | _ -> true
+
+(* veryアドホック *)
+let rec to_baseLogic_sort:baseSort -> BaseLogic.sort = function
+  | `BoolS -> BaseLogic.BoolS
+  | `IntS ->  BaseLogic.IntS
+  | `DataS i -> BaseLogic.DataS (i, [])
+  | `SetS s -> BaseLogic.SetS (to_baseLogic_sort s)
 
 
 type  clause = (*\psi(x,y): predicate type formula *)
