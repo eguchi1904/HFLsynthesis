@@ -67,6 +67,7 @@ type t =
 
 val is_valid: t -> bool
 
+val to_z3_expr : t -> Z3.Expr.expr * Z3.Sort.sort
   
 type qformula =
     QAll of (Id.t * sort) list * t list * t

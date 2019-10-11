@@ -271,6 +271,12 @@ let convert (e:Formula.t) =
   let ((smap,emap,fmap):z3_env) = mk_z3_env () in
   (* (Printf.printf "\n\nconvert:%s\n" (Formula.p2string_with_sort e)); *)
   formula2z3 ctx smap emap fmap e
+
+
+let mk_horn (pre:Expr.expr list) (res:Expr.expr) = 
+  (Boolean.mk_implies ctx (Boolean.mk_and ctx pre) res)
+
+let bind_and_list expr_list = (Boolean.mk_and ctx expr_list)
   
 exception CANT_SOLVE
 let z3_t = ref 0.0

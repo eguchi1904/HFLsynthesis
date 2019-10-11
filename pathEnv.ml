@@ -19,6 +19,9 @@ let add_bind i sort env =
                    
 let find_heads base env :HeadCandidates.t=
   MlEnv.find_heads base env.sortEnv
+
+let extract_condition env = env.condition
+  
   
 
           

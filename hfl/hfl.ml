@@ -30,7 +30,9 @@ type  clause = (*\psi(x,y): predicate type formula *)
   | `Abs of ((Id.t * sort) list * clause)(* 1階の場合は使わない *)           
   | `App of application
   (* |Unknown of Id.t * sort  (\* unknown predicate *\) *)
-  | `Or of clause * clause]
+  | `Or of clause * clause
+  | `And of clause * clause
+  ]
   and application =  {head:Id.t;
                       params:abstClause list;  (*否定が取れるpredicateのみをapplyできる。とする. *)
                       args:clause list}
@@ -79,7 +81,11 @@ let rec subst' predicate_map base_term_map clause =
          args = List.map (subst' predicate_map base_term_map) real_args} 
     
   |`Or (c1, c2) -> `Or (subst' predicate_map base_term_map c1,
-                      subst' predicate_map base_term_map c2)
+                        subst' predicate_map base_term_map c2)
+                 
+  |`And (c1, c2) -> `And (subst' predicate_map base_term_map c1,
+                        subst' predicate_map base_term_map c2)
+                 
     
 let subst map clause =
   let (predicate_map:abstClause M.t), (base_term_map:BaseLogic.t M.t) =
@@ -119,9 +125,12 @@ let subst_bottom (predicates:(Id.t * abstSort) list) clause =
   
        
 type qhorn 
-  = |Horn of clause list * clause
-    |Exists of Id.t * baseSort * qhorn
-    |Forall of Id.t * baseSort * qhorn
+  = [ `Horn of clause list * clause 
+    | `Exists of Id.t * baseSort * qhorn
+    | `Forall of Id.t * baseSort * qhorn
+    ]
+
+(* type existsHorn = [`Exists of Id.t * baseSort * existsHorn] *)
 
              
 type fhorn                      
