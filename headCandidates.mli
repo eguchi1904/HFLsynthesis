@@ -1,5 +1,5 @@
-type t =  {scalar:(Id.t * Hfl.sort) list
-          ;func:(Id.t * Hfl.sort) list}
+type t =  {scalar:(Id.t * Hfl.baseSort) list
+          ;func:(Id.t * Hfl.funcSort) list}
 
 val empty:t
 

@@ -1,12 +1,13 @@
-type t =  {scalar:(Id.t * Hfl.sort) list
-          ;func:(Id.t * Hfl.sort) list}
+type t =  {scalar:(Id.t * Hfl.baseSort) list
+          ;func:(Id.t * Hfl.funcSort) list}
 
 let empty = {scalar =[]; func = []}
 
-let add id sort t =
-  if Hfl.is_baseSort sort then
-    {scalar = (id, sort)::t.scalar
+let add id (sort:Hfl.sort) t =
+  match sort with
+  |`BoolS | `IntS | `DataS _ | `SetS _ as sort'->
+    {scalar = (id, sort')::t.scalar
     ;func = t.func}
-  else
+  |`FunS _ as sort' ->
     {scalar = t.scalar
-    ;func = (id, sort)::t.func}
+    ;func = (id, sort')::t.func}
