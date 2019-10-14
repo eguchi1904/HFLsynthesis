@@ -233,6 +233,37 @@ type fhorn
     ;args:(Id.t * sort) list
     ;body: qhorn}
 
+  
+(* input:   \x. \y. \phi(x,y) 
+   output:  \x'.\y'.\phi(x',y')                   
+ *)
+let alpha_rename {params = params
+                 ;args = args
+                 ;body = qhorn}
+  =
+  let freshed_args, fresh_map = 
+    List.fold_right
+      (fun (id, sort) (acc_args, acc_map)->
+        match sort with
+        |(`BoolS | `IntS | `DataS _ | `SetS _ as basesort) ->
+          let base_sort = to_baseLogic_sort basesort in
+          let id' = Id.genid (Id.to_string id) in
+          let open BaseLogic in
+          let id'_var = Var (base_sort, id') in
+          ((id', sort)::acc_args, M.add id id'_var acc_map)
+        | _  ->
+           let id' = Id.genid (Id.to_string id) in
+           ((id', sort)::acc_args, acc_map))
+      args
+      ([], M.empty)
+  in
+  let freshed_qhorn = subst_qhorn' M.empty fresh_map qhorn in
+  {params = params
+  ;args = freshed_args
+  ;body = freshed_qhorn}
+          
+
+
 
 
 type fixOp = Nu | Mu
@@ -280,14 +311,18 @@ end
                    ;args:(Id.t * sort) list
                    ;argSpecs:(Id.t * clause) list
                    ;retSpec: clause}
-    
+
   let extract_fun_spec arr id =
     match arr.(Id.to_int id) with
     |None -> None
-    |Some (None, {params = params;
-                  args = args;
-                  body= `Horn (pre, c)})
-     ->
+    |Some (Some _, _) ->
+      invalid_arg "hfl.extract_fun_spec: not implement yet"
+    |Some (None, qhorn) ->
+      let qhorn = alpha_rename qhorn in
+      (match qhorn with
+      |{params = params;
+        args = args;
+        body= `Horn (pre, c)} ->
       assert ((List.length args) = (List.length pre));
       let arg_specs = List.map2
                         (fun (id,_) clause -> id, clause)
@@ -299,7 +334,8 @@ end
            ;args = args
            ;argSpecs  = arg_specs
            ;retSpec = c}
-    |_ -> invalid_arg "hfl.extract_fun_spec: not implement yet"
+      |_ -> invalid_arg "hfl.extract_fun_spec: not implement yet"
+      )
         
       
 

@@ -11,6 +11,10 @@ let add_condition c env =
   ;sortEnv  =env.sortEnv}
  
 
+let add_condition_list cs env =
+  {condition = cs@env.condition
+  ;sortEnv  =env.sortEnv}
+  
 let add_bind i sort env =
   {condition = env.condition
   ;sortEnv = MlEnv.add i sort env.sortEnv
