@@ -34,7 +34,8 @@ let hfl_prop_of_leaf ep id sort :upProp= (* 毎回計算するの出なくキャ
 (* 引数のrequireする仕様を構成
    引数の変数名は、freshなものを返す
  *)
-let mk_sufficient_arg_spec ep penv head spec = 
+let split_arg_spec_return_prop ep penv head spec =
+  (* extract_fun_specが、argの変数名のfreshnessを保証 *)
   match Hfl.Equations.extract_fun_spec ep head with
   |Some head_spec ->
     let cons = Constraint.make ep penv
@@ -68,10 +69,45 @@ let mk_sufficient_arg_spec ep penv head spec =
         head_spec.argSpecs
         splited_arg_specs
     in
-    Some arg_spec
+    Some (arg_spec, head_spec.retSpec)
   |None -> None
-                                     
-                                     
+
+         
+let mk_args_prop (args:(Id.t * (Program.e * upProp)) list) sorts =
+  (*  bindは真面目に計算すると↓だが、alternationないなら保持しておく必要ない *)
+  
+  (* let old_binds = *)
+  (*   List.map *)
+  (*     (fun (_, (_, `Exists (binds, _))) -> binds) *)
+  (*     args *)
+  (*   |> List.concat *)
+  (* in *)
+  (* let new_binds = *)
+  (*   List.map2 *)
+  (*     (fun (x,_) sort -> (x, sort)) *)
+  (*     args *)
+  (*     sorts *)
+  (* in *)
+  (* let binds = new_binds@old_binds in *)
+  let binds = [] in
+  let prop_body =              
+    List.map
+      (fun (x, (_, `Exists (_, body))) ->
+        (* [_v -> x]body *)
+        List.map (Hfl.replace Id.valueVar_id x) body)
+      args
+    |>
+      List.concat
+  in
+  `Exists (binds, prop_body)
+  
+                                         
+
+        
+        
+        
+                                             
+                              
   
           
 (* ************************************************** *)
@@ -94,7 +130,7 @@ let gen_leaf ep penv (scalar_heads:(Id.t * Hfl.baseSort) list) spec =
        )
 
 
-let rec gen_args: Hfl.Equations.t -> PathEnv.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list -> (Program.e * upProp) list Seq.t = 
+let rec gen_args: Hfl.Equations.t -> PathEnv.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list -> (Id.t * (Program.e * upProp)) list Seq.t = 
   (fun ep penv arg_specs ->
     match arg_specs with
     |[] -> Seq.singleton []
@@ -110,23 +146,38 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> (Id.t * Hfl.sort * Hfl.qhorn l
           let penv' = PathEnv.add_condition_list ex_conds penv in
           gen_args ep penv' lest_specs
           |> Seq.map
-               ~f:(fun lest_arg_list -> (ex, ex_prop)::lest_arg_list)
+               ~f:(fun lest_arg_list -> (x,(ex, ex_prop))::lest_arg_list)
         )
+  )
 
                 
   
 let gen_node ep penv (head,`FunS (arg_sorts, ret_sort)) spec =
-  match mk_sufficient_arg_spec ep penv head spec with
-  |Some arg_specs ->
+  match split_arg_spec_return_prop ep penv head spec with
+  |Some (arg_specs, ret_prop) ->
     assert (List.length arg_specs = List.length arg_sorts);
     let arg_specs_with_sort =
       List.map2
         (fun (x, spec) sort -> (x, sort, spec))
         arg_specs arg_sorts
     in
+    (* 引数列の候補 *)
     let arg_seq = gen_args ep penv arg_specs_with_sort in
-
+    Seq.map
+    arg_seq
+      ~f:(fun (args:(Id.t * (Program.e * upProp)) list)  ->
+        let `Exists (binds, prop) = mk_args_prop args arg_sorts in
+        let up_prop = `Exists (binds, ret_prop::prop) in
+        let arg_e_terms = List.map (fun (_, (e, _)) -> e) args in
+        let e_term = Program.{head = head
+                             ;args = arg_e_terms}
+        in
+        (e_term, up_prop))
+  |None -> assert false
+        
     
+        
+        
     
     
     
