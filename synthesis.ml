@@ -114,7 +114,7 @@ let mk_args_prop (args:(Id.t * (Program.e * upProp)) list) sorts =
 (* synthesis main *)
 (* ************************************************** *)
           
-let gen_leaf ep penv (scalar_heads:(Id.t * Hfl.baseSort) list) spec =
+let gen_vars ep penv (scalar_heads:(Id.t * Hfl.baseSort) list) spec =
   Seq.unfold_step
     ~init:scalar_heads
     ~f:(function
@@ -130,13 +130,14 @@ let gen_leaf ep penv (scalar_heads:(Id.t * Hfl.baseSort) list) spec =
        )
 
 
+  
 let rec gen_args: Hfl.Equations.t -> PathEnv.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list -> (Id.t * (Program.e * upProp)) list Seq.t = 
   (fun ep penv arg_specs ->
     match arg_specs with
     |[] -> Seq.singleton []
     |(x, sort, spec)::lest_specs ->
       let term_for_x:(Program.e * upProp) Seq.t =
-        gen_e ep penv sort spec
+        gen_e_terms ep penv sort spec
       in
       Seq.concat_map
         term_for_x
@@ -150,9 +151,7 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> (Id.t * Hfl.sort * Hfl.qhorn l
         )
   )
 
-                
-  
-let gen_node ep penv (head,`FunS (arg_sorts, ret_sort)) spec =
+and gen_app_term ep penv spec (head,`FunS (arg_sorts, ret_sort))  =
   match split_arg_spec_return_prop ep penv head spec with
   |Some (arg_specs, ret_prop) ->
     assert (List.length arg_specs = List.length arg_sorts);
@@ -175,25 +174,17 @@ let gen_node ep penv (head,`FunS (arg_sorts, ret_sort)) spec =
         (e_term, up_prop))
   |None -> assert false
         
-    
-        
-        
-    
-    
-    
+and gen_app_terms ep penv spec (func_heads:(Id.t * Hfl.funcSort) list)  =
+  List.map (gen_app_term ep penv spec) func_heads
+  |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
-                                                              
-  
-let gen_nodes ep penv (func_heads:(Id.t * Hfl.funcSort) list) spec =
-assert false
-       
-  
-(* let rec gen_e ep penv sort spec dmax = *)
-(*   let HeadCandidates.{scalar = scalar_heads; func = func_heads} *)
-(*     =  PathEnv.find_heads (Hfl.return_sort sort) penv *)
-(*   in *)
-(*   let leaf_seq = gen_leaf ep penv scalar_heads spec in *)
-(*   let node_seq = gen_node ep penv func_heads spec in *)
+and gen_e_terms ep penv sort spec  =
+  let HeadCandidates.{scalar = scalar_heads; func = func_heads}
+    =  PathEnv.find_heads (Hfl.return_sort sort) penv
+  in
+  let var_seq = gen_vars ep penv scalar_heads spec in
+  let node_seq = gen_app_terms ep penv spec func_heads  in
+  Seq.append var_seq node_seq
 
   
     
