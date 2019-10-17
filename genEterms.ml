@@ -147,13 +147,14 @@ let gen_vars: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
 
 
 let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list
+                  -> int
                   -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) Seq.t = 
-  (fun ep penv abduction_candidate arg_specs ->
+  (fun ep penv abduction_candidate arg_specs depth ->
     match arg_specs with
     |[] -> Seq.singleton ([], abduction_candidate)
     |(x, sort, spec)::lest_specs ->
       let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
-        f ep penv abduction_candidate sort spec
+        f ep penv abduction_candidate sort spec depth
       in
       Seq.concat_map
         term_for_x
@@ -161,16 +162,17 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t 
           let ex_conds =
             List.map (Hfl.replace x Id.valueVar_id) clauses in
           let penv' = PathEnv.add_condition_list ex_conds penv in
-          gen_args ep penv' abduction_candidate lest_specs
+          gen_args ep penv' abduction_candidate lest_specs depth
           |> Seq.map
                ~f:(fun (args, acc_abduction_candidate) ->
                  (x,(ex, ex_prop))::args, acc_abduction_candidate)
         )
   )
 
-and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list -> (Id.t * Hfl.funcSort)
+and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list
+                 -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
-  (fun ep penv abduction_candidate spec (head,`FunS (arg_sorts, ret_sort))  ->
+  (fun ep penv abduction_candidate spec depth (head,`FunS (arg_sorts, ret_sort))  ->
     match split_arg_spec_return_prop ep penv head spec with
     |Some (arg_specs, ret_prop) ->
       assert (List.length arg_specs = List.length arg_sorts);
@@ -180,7 +182,7 @@ and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qho
           arg_specs arg_sorts
       in
       (* 引数列の候補 *)
-      let arg_seq = gen_args ep penv abduction_candidate arg_specs_with_sort in
+      let arg_seq = gen_args ep penv abduction_candidate arg_specs_with_sort (depth-1) in
       Seq.map
         arg_seq
         ~f:(fun ((args:(Id.t * (Program.e * upProp)) list), abduction_candidate)  ->
@@ -194,17 +196,20 @@ and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qho
   |None -> assert false
   )
         
-and gen_app_terms ep penv abduction_candidates spec (func_heads:(Id.t * Hfl.funcSort) list)  =
-  List.map (gen_app_term ep penv abduction_candidates spec) func_heads
+and gen_app_terms ep penv abduction_candidates spec depth (func_heads:(Id.t * Hfl.funcSort) list) =
+  List.map (gen_app_term ep penv abduction_candidates spec depth) func_heads
   |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
-and f ep penv abduction_candidate sort spec  =
+and f ep penv abduction_candidate sort spec depth =
   let HeadCandidates.{scalar = scalar_heads; func = func_heads}
     =  PathEnv.find_heads (Hfl.return_sort sort) penv
   in
   let var_seq = gen_vars ep penv abduction_candidate scalar_heads spec in
-  let node_seq = gen_app_terms ep penv abduction_candidate spec func_heads  in
-  Seq.append var_seq node_seq
+  if depth <= 0 then
+    var_seq
+  else
+    let app_term_seq = gen_app_terms ep penv abduction_candidate spec depth func_heads in
+    Seq.append var_seq app_term_seq
 
   
     

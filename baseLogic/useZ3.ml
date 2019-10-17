@@ -276,6 +276,7 @@ let convert (e:Formula.t) =
 let mk_horn (pre:Expr.expr list) (res:Expr.expr) = 
   (Boolean.mk_implies ctx (Boolean.mk_and ctx pre) res)
 
+
 let bind_and_list expr_list = (Boolean.mk_and ctx expr_list)
   
 exception CANT_SOLVE
