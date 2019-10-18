@@ -39,6 +39,7 @@ let add_imap sort id (imap:imap) :imap=
 
 let add id sort ((smap, imap):t) :t =
   (M.add id sort smap, add_imap sort id imap)
+  
 
 let find id ((smap, _):t) :Hfl.sort =
   try M.find id smap

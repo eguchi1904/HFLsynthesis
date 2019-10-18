@@ -25,6 +25,16 @@ let rec to_baseLogic_sort:baseSort -> BaseLogic.sort = function
   | `DataS i -> BaseLogic.DataS (i, [])
   | `SetS s -> BaseLogic.SetS (to_baseLogic_sort s)
 
+let rec of_baseLogic_sort: BaseLogic.sort -> baseSort = function
+  |BaseLogic.BoolS -> `BoolS
+  |BaseLogic.IntS  -> `IntS
+  |BaseLogic.DataS (i, sargs) ->
+    assert (sargs = []);
+    `DataS i
+  |BaseLogic.SetS bs ->
+    `SetS (of_baseLogic_sort bs)
+  |BaseLogic.AnyS  _ |BaseLogic.UnknownS _ -> assert false
+
 
 type  clause = (*\psi(x,y): predicate type formula *)
   [ `Base of BaseLogic.t

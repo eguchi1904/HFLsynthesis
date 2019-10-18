@@ -168,6 +168,7 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t 
                  (x,(ex, ex_prop))::args, acc_abduction_candidate)
         )
   )
+  
 
 and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list
                  -> int -> (Id.t * Hfl.funcSort)
@@ -195,11 +196,13 @@ and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qho
           (e_term, up_prop, abduction_candidate))
   |None -> assert false
   )
-        
+
+  
 and gen_app_terms ep penv abduction_candidates spec depth (func_heads:(Id.t * Hfl.funcSort) list) =
   List.map (gen_app_term ep penv abduction_candidates spec depth) func_heads
   |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
+  
 and f ep penv abduction_candidate sort spec depth =
   let HeadCandidates.{scalar = scalar_heads; func = func_heads}
     =  PathEnv.find_heads (Hfl.return_sort sort) penv
