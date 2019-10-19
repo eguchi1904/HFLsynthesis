@@ -12,7 +12,6 @@ end
 let generator data_env qualifyer e_depth =
   (module struct
 
-
      let mk_match_case_penv ep z scrutinee_prop (`Data data) DataType.{name = cons; args = arg_list} =
        let new_arg = List.map (fun (x, sort) -> (Id.genid x, sort) )in
        let DataType.{constructor = cons'; args=args'; body = measure_constraint} = 

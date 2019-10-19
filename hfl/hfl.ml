@@ -40,6 +40,7 @@ type  clause = (*\psi(x,y): predicate type formula *)
   [ `Base of BaseLogic.t
   | `Abs of ((Id.t * sort) list * clause)(* 1階の場合は使わない *)           
   | `App of application
+  | `RData of Id.t * abstClause list * clause (* List (\x.x>0) _v みたいな述語。 実装上特別扱い*)
   (* |Unknown of Id.t * sort  (\* unknown predicate *\) *)
   | `Or of clause * clause
   | `And of clause * clause
@@ -76,13 +77,19 @@ let extend_map_from_args
   in
   predicate_map', base_term_map'
   
-         
-let rec subst' =
+
+let rec subst_abs': abstClause M.t -> BaseLogic.t M.t -> abstClause -> abstClause = 
+  (fun predicate_map base_term_map (`Abs (args, body)) ->
+     `Abs (args, subst' predicate_map base_term_map body))
+
+    
+and subst' =
   (fun predicate_map base_term_map clause ->
   match clause with
   | `Base base_e -> `Base (BaseLogic.substitution base_term_map base_e)
-  | `Abs (args, body) -> `Abs (args, subst' predicate_map base_term_map body)
-                                       
+  | `Abs _ as abs_clause->
+     let abs' = subst_abs' predicate_map base_term_map abs_clause in
+     (abs':> clause)
   | `App {head = head; params = []; args = real_args} when M.mem head predicate_map ->
     let real_args = List.map (subst' predicate_map base_term_map) real_args in
     (match M.find head predicate_map with
@@ -95,12 +102,23 @@ let rec subst' =
            base_term_map
        in
        subst' predicate_map' base_term_map' body)
-  |`App {head = head; params = _::_; args = _} when M.mem head predicate_map -> assert false
-  |`App {head = head; params = params; args = real_args} ->
+  | `App {head = head; params = _::_; args = _} when M.mem head predicate_map ->
+     (* 今は、Cons p = ... p
+        のp煮た委する代入とかを考えているから。こういうことにはならない。というだけ
+      *)
+     assert false
+  | `App {head = head; params = params; args = real_args} ->
     `App {head = head;
          params = params;
-         args = List.map (subst' predicate_map base_term_map) real_args} 
-    
+         args = List.map (subst' predicate_map base_term_map) real_args}
+
+  | `RData (rdata, params, arg) ->
+     let params' =
+       List.map
+         (subst_abs' predicate_map base_term_map) params in
+     let arg' =  subst' predicate_map base_term_map arg in
+     `RData (rdata, params', arg')
+
   |`Or (c1, c2) -> `Or (subst' predicate_map base_term_map c1,
                         subst' predicate_map base_term_map c2)
                  
@@ -123,7 +141,11 @@ and replace x y clause=     (* return [x -> y].clause *)
   | `App {head = head; params = params; args = real_args} ->
      `App {head = head;
            params = List.map (replace_abst x y) params;
-           args = List.map (replace x y) real_args}    
+           args = List.map (replace x y) real_args}
+  | `RData (rdata, params, arg) ->
+     let params' = List.map (replace_abst x y) params in
+     let arg' = replace x y arg in
+     `RData (rdata, params', arg')
   | `Or (c1, c2) -> `Or (replace x y c1,
                          replace x y c2)
                  
