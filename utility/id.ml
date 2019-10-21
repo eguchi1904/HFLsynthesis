@@ -10,6 +10,12 @@ let genid (s:string) :t =
   let () = Hashtbl.add hash id str_id in
   id
 
+
+let genid_from_id t =
+  match Hashtbl.find_opt hash t with
+  |Some s -> genid s
+  |None -> assert false         (* unreachable from outside the module *)
+         
 (* 互換性のため *)
 let genid_const (s:string) :t =
   let id = !counter in  

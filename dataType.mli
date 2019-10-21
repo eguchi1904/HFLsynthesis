@@ -18,7 +18,7 @@ type definition = {name: Id.t
    
  *)
 (* ************************************************** *)
-type formulaCase = {constructor: Id.t ; args: Id.t list ; body: Formula.t }
+type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
 type measure = {name: Id.t
                ;inputSort: [`DataS of Id.t]
                ;returnSort: Hfl.baseSort
@@ -54,4 +54,23 @@ module Env:sig
 
   val measure_constructor_of_constructor: t -> [`Data of Id.t] -> Id.t -> formulaCase
 
+  (* 
+     List (\x.x>0) (y::ys)
+     から 、
+     y > 0 && List (\x.x>0) ys 
+     と展開し、y,ysに要求される条件を生成する
+
+   *)
+  val unfold_refine: t -> constructor -> Id.t * Hfl.abstClause list -> (Id.t * BaseLogic.t) list
+
+  (* unfold_clause_diff x (Cons y ys) \phi(x)
+     -> \phi(y::ys)
+
+     invaliant: not (x \in FV{unfold_clause_diff x ...)} )
+   *)
+  val unfold_clauses_diff: t -> Id.t -> constructor -> Hfl.clause list->  Hfl.clause list
+
 end
+
+
+

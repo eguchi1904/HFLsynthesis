@@ -6,27 +6,50 @@ module type SYNTHESIS = sig
 end
 
 
+                      
 
                       
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
 let generator data_env qualifyer e_depth =
   (module struct
 
-     let mk_match_case_penv ep z scrutinee_prop (`Data data) DataType.{name = cons; args = arg_list} =
-       let new_arg = List.map (fun (x, sort) -> (Id.genid x, sort) )in
+     let add_penv_case_specific_info
+           penv z scrutinee_prop (`Data data) DataType.{name = cons; args = arg_list}
+       =
+       let new_args = List.map (fun (x, sort) -> (Id.genid_from_id x, sort) ) arg_list in
+       let penv =
+         List.fold_right
+           (fun (x, sort) penv' ->  PathEnv.add_bind x sort penv')
+           (new_args :> (Id.t * Hfl.sort) list)
+         penv
+       in  
        let DataType.{constructor = cons'; args=args'; body = measure_constraint} = 
          DataType.Env.measure_constructor_of_constructor data_env (`Data data) cons 
        in
        assert (cons' = cons);
-       let arg_constraint = unfold_refine_data_type  z scrutinee_prop
-       (* let penv' = List.fold *)
-       (*               arg_sort_list *)
-       assert false
+       match scrutinee_prop with
+       |None -> penv
+       |Some (`Exists (bind, scrutinee_prop)) ->
+         let arg_constraint =
+           DataType.Env.unfold_clauses_diff
+             data_env
+             z DataType.{name=cons; args = new_args}
+             scrutinee_prop
+         in
+         let penv = PathEnv.add_condition_list
+                      ((`Base measure_constraint)::arg_constraint)
+                      penv
+         in
+         penv
 
-     let mk_match_case_penv_list ep z scrutinee_prop (`Data data) =
-       let refine_data_type:`Cons of (Id.t * Hfl.abstClause) = extract_refine_data_type scrutinee_prop in
+     let mk_match_case_penv_list z scrutinee_prop (`Data data) penv =
        let cons_list = DataType.Env.list_constructor data_env data in (*  *)
-       List.map (mk_match_case_penv ep z scrutinee_prop (`Data data)) cons_list
+       let penv' =
+         match scrutinee_prop with
+         |None -> penv
+         |Some (`Exists (bind, cs)) -> PathEnv.add_condition_list cs penv
+       in
+       List.map (add_penv_case_specific_info penv' z scrutinee_prop (`Data data)) cons_list
 
      let gen_e_term ep penv abduction_candidate sort spec =
        GenEterms.f ep penv abduction_candidate sort spec e_depth

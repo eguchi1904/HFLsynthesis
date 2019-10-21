@@ -4,6 +4,8 @@ val valueVar_id:t
   
 val genid: string -> t
 
+val genid_from_id: t -> t
+
 val genid_const: string -> t
 
 val to_int: t -> int
