@@ -7,10 +7,12 @@ type b =
   |PIf of (condition * b * b)
   |PMatch of e * (case list)
   |PE of e
- and case =  {constructor : Id.t ; argNames : Id.t list ; body : b}
+ and case =  {constructor : Id.t ;
+              argNames : (Id.t * Hfl.baseSort) list ;
+              body : b}
 
 type t =
-  |PRecFun of Id.t * (Id.t list) * b
+  |PRecFun of Id.t * ((Id.t * Hfl.sort) list) * b
 
 
 

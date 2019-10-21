@@ -42,14 +42,6 @@ let generator data_env qualifyer e_depth =
          in
          penv
 
-     let mk_match_case_penv_list z scrutinee_prop (`Data data) penv =
-       let cons_list = DataType.Env.list_constructor data_env data in (*  *)
-       let penv' =
-         match scrutinee_prop with
-         |None -> penv
-         |Some (`Exists (bind, cs)) -> PathEnv.add_condition_list cs penv
-       in
-       List.map (add_penv_case_specific_info penv' z scrutinee_prop (`Data data)) cons_list
 
      let gen_e_term ep penv abduction_candidate sort spec =
        GenEterms.f ep penv abduction_candidate sort spec e_depth
@@ -81,14 +73,30 @@ let generator data_env qualifyer e_depth =
      and gen_branch_by_abduction = 
        (fun ep penv abduction_candidate sort ~spec ->
          match gen_e_term ep penv abduction_candidate sort spec with
-         |Some (e, e_prop, abduction_candidate) ->
+         |Some (e, _, abduction_candidate) ->
            let conds = AbductionCandidate.get abduction_candidate in
            if conds = [] then Some (Program.PE e)
            else
              begin
                match inspect_condition_is_equal_to_match conds with
                |Some {dataName = i; scrutinee = x; sclarConstructor = scon} ->
-                 assert false
+                 let scon_case =
+                   Program.{constructor = scon;
+                            argNames = [];
+                            body = Program.PE e}
+                 in
+                 let other_cons = DataType.Env.list_constructor data_env i
+                                  |> List.filter (fun (cons:DataType.constructor) -> cons.name <> scon)
+                 in
+                 let other_cases =
+                   gen_match_cases ep penv abduction_candidate
+                                   ~scrutineeInfo:(x, None, i, other_cons)
+                   sort ~spec
+                 in
+                 let open Program in
+                 Some (PMatch ({head = x; args = []},
+                               scon_case::other_cases)
+                      )
                |None ->
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
@@ -101,6 +109,29 @@ let generator data_env qualifyer e_depth =
              end
          |None -> None)
 
+
+     and gen_match_cases ep penv abduction_candidate
+                         ~scrutineeInfo:(z, scrutinee_prop, data, cons_list)
+                         sort ~spec
+       =
+
+       let penv' =
+         match scrutinee_prop with
+         |None -> penv
+         |Some (`Exists (bind, cs)) -> PathEnv.add_condition_list cs penv
+       in
+       let penv_list =
+         List.map
+           (add_penv_case_specific_info penv' z scrutinee_prop (`Data data))
+           cons_list
+       in
+       List.map2
+         (fun DataType.{name = cons; args = arg_list} penv ->
+           Program.{constructor = cons;
+                    argNames = arg_list;
+                    body = gen_b_term ep penv abduction_candidate sort ~spec})
+         cons_list
+         penv_list
 
      and inspect_condition_is_equal_to_match cond_list =
        let open BaseLogic in
@@ -122,6 +153,7 @@ let generator data_env qualifyer e_depth =
                                   sclarConstructor = scalar_cons
                                  }
               |_ -> assert false)
+           |_ -> None
          end
        | _ -> None
    end
