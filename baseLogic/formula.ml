@@ -857,7 +857,7 @@ and substitution (sita:subst) (t:t) =
 
 
 
-(* 単縦に変数の置換, replace廃止すべきだな。 *)
+(* 単縦に変数の置換, substが代入先のsortを参照することに依存してる *)
 let rec replace (x:Id.t) (y:Id.t) (t:t) =
   let y_v = Var (BoolS,y) in    (* BoolSはダミー -> これ結構問題あるな*)
   substitution (M.singleton x y_v) t

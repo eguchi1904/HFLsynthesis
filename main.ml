@@ -5,5 +5,7 @@ open Synthesis
 open PathEnv
 open AbductionCandidate
    
-let _ = print_string "hello"
+let _ =
+  let 
+  print_string "hello"
 

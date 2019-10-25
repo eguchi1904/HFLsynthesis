@@ -7,12 +7,40 @@ end
 
 
                       
-
-                      
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
 let generator data_env qualifyer e_depth =
   (module struct
 
+     type matchConditionInfo = {dataName:Id.t;
+                                scrutinee: Id.t;
+                                sclarConstructor: Id.t;
+                               }
+                             
+     let  inspect_condition_is_equal_to_match cond_list =
+       let open BaseLogic in
+       match cond_list with
+       |[cond] ->
+         begin
+           match cond with
+           |Eq ((Var (bsort, x)),
+                  Cons (bsort', scalar_cons, []))
+            
+            |Eq ((Cons (bsort', scalar_cons, [])),
+                   Var (bsort, x))
+            ->
+             (assert (bsort = bsort'));
+             let sort = Hfl.of_baseLogic_sort bsort in
+             (match sort with
+              | `DataS i -> Some {dataName = i;
+                                  scrutinee = x;
+                                  sclarConstructor = scalar_cons
+                                 }
+              |_ -> assert false)
+           |_ -> None
+         end
+       | _ -> None
+
+            
      let add_penv_case_specific_info
            penv z scrutinee_prop (`Data data) DataType.{name = cons; args = arg_list}
        =
@@ -42,15 +70,14 @@ let generator data_env qualifyer e_depth =
          in
          penv
 
+         
+
 
      let gen_e_term ep penv abduction_candidate sort spec =
        GenEterms.f ep penv abduction_candidate sort spec e_depth
        |> Seq.hd
 
-     type matchConditionInfo = {dataName:Id.t;
-                                scrutinee: Id.t;
-                                sclarConstructor: Id.t;
-                               }
+
 
      let get_sclar_constructor_spec ep sclar_con =
        match Hfl.Equations.find ep sclar_con with
@@ -66,8 +93,9 @@ let generator data_env qualifyer e_depth =
        (fun ep penv abduction_candidate sort ~spec ->
          match gen_branch_by_abduction ep penv abduction_candidate sort ~spec with
          |Some b -> b
-         |None -> assert false  (* enumeration of match or use othere template  *)
-                
+         |None ->
+           (* enumeration of match or use othere template  *)           
+           invalid_arg "gen_b_term: not impl yet"
        )
 
      and gen_branch_by_abduction = 
@@ -127,35 +155,17 @@ let generator data_env qualifyer e_depth =
        in
        List.map2
          (fun DataType.{name = cons; args = arg_list} penv ->
+           let abduction_candidate =
+             AbductionCandidate.extend_with_new_var
+               penv qualifyer ~new_var:arg_list abduction_candidate
+           in
            Program.{constructor = cons;
                     argNames = arg_list;
                     body = gen_b_term ep penv abduction_candidate sort ~spec})
          cons_list
          penv_list
 
-     and inspect_condition_is_equal_to_match cond_list =
-       let open BaseLogic in
-       match cond_list with
-       |[cond] ->
-         begin
-           match cond with
-           |Eq ((Var (bsort, x)),
-                  Cons (bsort', scalar_cons, []))
-            
-            |Eq ((Cons (bsort', scalar_cons, [])),
-                   Var (bsort, x))
-            ->
-             (assert (bsort = bsort'));
-             let sort = Hfl.of_baseLogic_sort bsort in
-             (match sort with
-              | `DataS i -> Some {dataName = i;
-                                  scrutinee = x;
-                                  sclarConstructor = scalar_cons
-                                 }
-              |_ -> assert false)
-           |_ -> None
-         end
-       | _ -> None
+
    end
           :SYNTHESIS)
          

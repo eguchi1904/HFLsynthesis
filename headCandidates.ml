@@ -1,5 +1,6 @@
 type t =  {scalar:(Id.t * Hfl.baseSort) list
-          ;func:(Id.t * Hfl.funcSort) list}
+          ;func:(Id.t * Hfl.funcSort) list
+          }
 
 let empty = {scalar =[]; func = []}
 
