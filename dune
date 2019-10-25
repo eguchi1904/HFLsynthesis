@@ -6,18 +6,18 @@
 (release
 (flags (:standard  -bin-annot -A -noassert))))
 
-(menhir
-(modules cppFunParser)
-(mode promote)
-)
+; (menhir
+; (modules cppFunParser)
+; (mode promote)
+; )
 
-(ocamllex
-(modules cppFunLex)
-(mode promote)
-)
+; (ocamllex
+; (modules cppFunLex)
+; (mode promote)
+; )
 
 (executable
 (name main)
 (libraries z3 base)
-(modules_without_implementation dataType Qualifyer)
+(modules_without_implementation dataType )
 )

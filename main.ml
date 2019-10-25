@@ -4,8 +4,8 @@ open Hfl
 open Synthesis
 open PathEnv
 open AbductionCandidate
-   
+
 let _ =
-  let 
+
   print_string "hello"
 

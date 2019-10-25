@@ -39,7 +39,7 @@ let rec enumerate_possible_args
     
 
 
-let gen_formula penv ~must_include_vars ((args, body):t) =
+let gen_formulas penv ~must_include_vars ((args, body):t) =
   let possible_arg_vars =
     enumerate_possible_args
       penv
@@ -63,8 +63,3 @@ let gen_formula penv ~must_include_vars ((args, body):t) =
       
 
   
-
-module Env:sig
-  
-  
-end

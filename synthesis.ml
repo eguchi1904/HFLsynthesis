@@ -128,7 +128,9 @@ let generator data_env qualifyer e_depth =
                |None ->
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
-                 let abduction_candidate = AbductionCandidate.initialize penv' abduction_candidate in
+                 let abduction_candidate =
+                   AbductionCandidate.initialize penv' qualifyer ~new_vars:[] abduction_candidate
+                 in
                  let b_else =  gen_b_term ep penv' abduction_candidate sort ~spec in
                  let open Program in
                  Some (PIf ((PredCond (BaseLogic.and_list conds)),
@@ -156,8 +158,8 @@ let generator data_env qualifyer e_depth =
        List.map2
          (fun DataType.{name = cons; args = arg_list} penv ->
            let abduction_candidate =
-             AbductionCandidate.extend_with_new_var
-               penv qualifyer ~new_var:arg_list abduction_candidate
+             AbductionCandidate.initialize
+               penv qualifyer ~new_vars:(List.map fst arg_list) abduction_candidate
            in
            Program.{constructor = cons;
                     argNames = arg_list;
