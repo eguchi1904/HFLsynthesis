@@ -37,12 +37,12 @@ type measure = {name: Id.t
 (* ************************************************** *)             
 type refineCase =
   {constructor: Id.t;
-   args: (Id.t * Hfl.baseSort * BaseLogic.t) list;
+   args: (Id.t * Hfl.baseSort * Hfl.clause) list;
   }
 
 
 type refine = {name: Id.t
-              ;param: (Id.t * Hfl.abstSort)
+              ;param: (Id.t * Hfl.abstSort) list
               ;constructors: refineCase list
               }
 
@@ -54,12 +54,13 @@ module Env:sig
   val list_constructor: t -> Id.t ->  constructor list
 
   val measure_constraint_of_constructor: t -> [`Data of Id.t] -> Id.t -> formulaCase
-
-  val termination_measure: t -> [`Data of Id.t] -> Id.t
+    
   (* list なら、 len  など、
      停止性を保証するために使って良い下限のあるint型を返すmeasure
      ユーザがannotate
    *)
+  val termination_measure: t -> [`Data of Id.t] -> measure list
+
 
   (* 
      List (\x.x>0) (y::ys)
@@ -68,7 +69,7 @@ module Env:sig
      と展開し、y,ysに要求される条件を生成する
 
    *)
-  val unfold_refine: t -> constructor -> Id.t * Hfl.abstClause list -> (Id.t * BaseLogic.t) list
+  val unfold_refine: t -> constructor -> Id.t * Hfl.abstClause list -> (Id.t * Hfl.clause) list
 
   (* unfold_clause_diff x (Cons y ys) \phi(x)
      -> \phi(y::ys)
