@@ -13,14 +13,14 @@ rule main = parse
  { main lexbuf }
 
 | "\n"
- { Lexing.new_line lexbuf;NEWLINE}
+ { Lexing.new_line lexbuf; main lexbuf}
 
 | "(*"               
     { comment lexbuf;
-      token lexbuf }
+      main lexbuf }
 | "let"
  { LET }
- | "rec"
+| "rec"
  { REC }
 
  
@@ -134,9 +134,9 @@ rule main = parse
 |eof
  { EOF } 
 | (lower|'_') (digit|lower|upper|'_'|'\'')* as id
- { ID id }
+ { ID (Id.genid_const id) }
 | upper (digit|lower|upper|'_'|'\'')* as id
- { CAPID id }
+ { CAPID (Id.genid_const id) }
 | _
     { failwith
 	(Printf.sprintf "unknown token %s near line %d characters %d-%d"

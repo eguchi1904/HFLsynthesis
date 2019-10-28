@@ -16,7 +16,7 @@ let add_condition_list cs env =
   ;sortEnv  =env.sortEnv}
   
 let add_bind i sort env =
-  {condition = env.conditidon
+  {condition = env.condition
   ;sortEnv = MlEnv.add i sort env.sortEnv
   }
 
