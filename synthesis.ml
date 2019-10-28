@@ -1,14 +1,15 @@
 module Seq = Base.Sequence
 
 module type SYNTHESIS = sig
-  val gen_b_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.sort -> spec:Hfl.qhorn list 
-                 -> Program.b
+  
+  val  f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t
+     
 end
 
 
                       
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
-let generator data_env qualifyer e_depth =
+let generator data_env qualifiers e_depth =
   (module struct
 
      type matchConditionInfo = {dataName:Id.t;
@@ -52,7 +53,7 @@ let generator data_env qualifyer e_depth =
          penv
        in  
        let DataType.{constructor = cons'; args=args'; body = measure_constraint} = 
-         DataType.Env.measure_constructor_of_constructor data_env (`Data data) cons 
+         DataType.Env.measure_constraint_of_constructor data_env (`Data data) cons 
        in
        assert (cons' = cons);
        match scrutinee_prop with
@@ -84,6 +85,7 @@ let generator data_env qualifyer e_depth =
        |Some (None, {params = _; args = []; body = `Horn ([], c)}) ->
          c
        |_ -> invalid_arg "get_sclar_constructor_spec"
+
          
                                 
        
@@ -129,7 +131,7 @@ let generator data_env qualifyer e_depth =
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
                  let abduction_candidate =
-                   AbductionCandidate.initialize penv' qualifyer ~new_vars:[] abduction_candidate
+                   AbductionCandidate.initialize penv' qualifiers ~new_vars:[] abduction_candidate
                  in
                  let b_else =  gen_b_term ep penv' abduction_candidate sort ~spec in
                  let open Program in
@@ -159,13 +161,37 @@ let generator data_env qualifyer e_depth =
          (fun DataType.{name = cons; args = arg_list} penv ->
            let abduction_candidate =
              AbductionCandidate.initialize
-               penv qualifyer ~new_vars:(List.map fst arg_list) abduction_candidate
+               penv qualifiers ~new_vars:(List.map fst arg_list) abduction_candidate
            in
            Program.{constructor = cons;
                     argNames = arg_list;
                     body = gen_b_term ep penv abduction_candidate sort ~spec})
          cons_list
          penv_list
+
+
+     let mk_rec_spec penv spec = spec (* ひとまず、いや一瞬で必要にあるな。全ての入力にlet f x　= f xが帰るので*)
+       
+     let f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t = 
+       (fun ep penv name sort ~spec ->
+         let Hfl.{params = params; args = args; body = qhorn} = spec in
+         let rec_spec = mk_rec_spec penv spec in
+         let () = Hfl.Equations.add ep name None rec_spec in
+         let penv = PathEnv.add_bind_list args  penv in
+         let abduction_candidate =
+           AbductionCandidate.initialize
+             penv qualifiers
+             ~new_vars:(List.map fst args)
+           AbductionCandidate.empty
+         in
+         match qhorn with
+         | `Horn(cs, c) ->
+            let penv = PathEnv.add_condition_list cs penv in
+            let b = gen_b_term ep penv abduction_candidate sort ~spec:[`Horn ([], c)] in
+            Program.PRecFun (name, args, b)
+         | _ -> assert false    (* not impl *)
+       )
+       
 
 
    end

@@ -1,5 +1,7 @@
 type t
 
+
+val empty:t
 val get: t -> BaseLogic.t list
   
 (* tを1段階強化したものの候補を返す *)

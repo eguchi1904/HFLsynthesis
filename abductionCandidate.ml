@@ -4,6 +4,9 @@ type t = {now: BaseLogic.t list
          ;candidates: BaseLogic.t list (* 順番に意味なし、setでもよい *)
            }
 
+
+let empty = {now = []; candidates = []}
+          
 let get t = t.now
 
 

@@ -20,6 +20,7 @@ type definition = {name: Id.t
 (* ************************************************** *)
 type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
 type measure = {name: Id.t
+               ;termination: bool
                ;inputSort: [`DataS of Id.t]
                ;returnSort: Hfl.baseSort
                ;matchCases: formulaCase list}
@@ -52,7 +53,13 @@ module Env:sig
 
   val list_constructor: t -> Id.t ->  constructor list
 
-  val measure_constructor_of_constructor: t -> [`Data of Id.t] -> Id.t -> formulaCase
+  val measure_constraint_of_constructor: t -> [`Data of Id.t] -> Id.t -> formulaCase
+
+  val termination_measure: t -> [`Data of Id.t] -> Id.t
+  (* list なら、 len  など、
+     停止性を保証するために使って良い下限のあるint型を返すmeasure
+     ユーザがannotate
+   *)
 
   (* 
      List (\x.x>0) (y::ys)
@@ -69,6 +76,8 @@ module Env:sig
      invaliant: not (x \in FV{unfold_clause_diff x ...)} )
    *)
   val unfold_clauses_diff: t -> Id.t -> constructor -> Hfl.clause list->  Hfl.clause list
+
+
 
 end
 

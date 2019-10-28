@@ -16,11 +16,16 @@ let add_condition_list cs env =
   ;sortEnv  =env.sortEnv}
   
 let add_bind i sort env =
-  {condition = env.condition
+  {condition = env.conditidon
   ;sortEnv = MlEnv.add i sort env.sortEnv
   }
 
-
+let add_bind_list binds env =
+  List.fold_right
+    (fun (i, sort) acc -> add_bind i sort acc)
+    binds
+  env
+  
                    
 let find_heads base env :HeadCandidates.t=
   MlEnv.find_heads base env.sortEnv

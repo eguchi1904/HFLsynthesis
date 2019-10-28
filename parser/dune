@@ -1,0 +1,9 @@
+(menhir
+(modules parser)
+(mode promote)
+)
+
+(ocamllex
+(modules lexer)
+(mode promote)
+)

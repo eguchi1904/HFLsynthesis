@@ -6,15 +6,7 @@
 (release
 (flags (:standard  -bin-annot -A -noassert))))
 
-; (menhir
-; (modules cppFunParser)
-; (mode promote)
-; )
 
-; (ocamllex
-; (modules cppFunLex)
-; (mode promote)
-; )
 
 (executable
 (name main)
