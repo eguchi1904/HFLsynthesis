@@ -71,6 +71,11 @@ open BaseLogic
 %token <Id.t> CAPID
 %token EOF
 
+%right prec_if
+%left NOT AND OR IMPLIES IFF 
+%left EQUAL NEQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL
+%left PLUS MINUS PLUS_DOT MINUS_DOT IN
+%left AST
 
 
 %type < ParseSyntax.t > toplevel
@@ -224,8 +229,10 @@ predicateDef:
  }
 
 predicateBody:
-| pre = option(clause) IMPLIES body = clause
-  { (pre, body) }
+| pre = clause IMPLIES body = clause
+  { (Some pre, body) }
+| body = clause
+  { (None, body) }
 
 
 /* **************************************************
@@ -263,8 +270,6 @@ goal:
 clause:
 | clauseAtom
   {$1}
-| FUN args = nonempty_list(absArg) ALLOW body = clause // fun (x:int) -> x >0
-  { `Abs (args, body) }
 | funName = ID args = list(clauseAtom) // h B(x) (fun i -> B(i>0)) ..
   { `App (ParseSyntax.{head = funName; args = args}) }
 | clause AND clause
@@ -274,6 +279,8 @@ clause:
 
 
 clauseAtom:
+| LPAREN FUN args = nonempty_list(absArg) ALLOW body = clause RPAREN // (fun (x:int) -> x >0)
+  { `Abs (args, body) }
 | BASE LPAREN baselogic = baselogic RPAREN // Base(x >0)
    { `Base baselogic }
 | LPAREN clause RPAREN
@@ -295,14 +302,20 @@ basesort:
 | ID { `DataS $1 }
 
 sort:
+| sortAtom
+  { $1 }
+| arg = sortAtom ALLOW ret = basesort
+ { `FunS ([arg], ret) }
+| arg = sortAtom AST other =  separated_nonempty_list(AST, sortAtom) ALLOW ret = basesort
+ { `FunS (arg::other, ret) }
+//| LPAREN args = separated_nonempty_list(AST, sortAtom) RPAREN ALLOW ret = basesort
+// { `FunS (args, ret) } 
+
+sortAtom:
 | basesort
   { ($1:> Hfl.sort) }
-| args = nonempty_list(sortallow) ret = basesort
- { `FunS (args, ret) }
-
-sortallow:
-| sort ALLOW { $1 }
-
+| LPAREN sort = sort RPAREN  
+ { sort }
 
 /* **************************************************
    baselogic
@@ -330,6 +343,7 @@ baselogic:
 | CAPID list(baselogicAtom)
    { Cons (ParseSyntax.sort_unfix, $1, $2) } 
 | IF e1 = baselogic THEN e2 = baselogic ELSE e3 = baselogic
+   %prec prec_if
    { If (e1, e2, e3) }
 | baselogic AST baselogic
   { Times ($1, $3) }  /* int_mul or set_intersection, decide later*/

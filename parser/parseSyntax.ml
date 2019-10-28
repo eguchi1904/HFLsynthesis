@@ -3,7 +3,7 @@ let sort_unfix = BaseLogic.DataS (Id.genid_const "unfix", [])
 
 
 type constructor = {name:Id.t;
-                    args:Hfl.baseSort list
+                    args:Hfl.baseSort list (* (int *  ) -> *)
                    }
 type typedef = {name: Id.t
                ;constructors: constructor list}
