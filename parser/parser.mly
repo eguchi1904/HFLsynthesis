@@ -35,6 +35,7 @@ open BaseLogic
 %token AND
 %token OR
 %token IMPLIES
+%token HORNIMPLIES
 %token IFF
 %token LESS
 %token LESS_EQUAL
@@ -67,15 +68,20 @@ open BaseLogic
 %token TRUE
 %token FALSE
 %token <int> INT
+
 %token <Id.t> ID
 %token <Id.t> CAPID
+%token <Id.t> MEASUREID
 %token EOF
 
+%right prec_clause
 %right prec_if
 %left NOT AND OR IMPLIES IFF 
 %left EQUAL NEQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL
 %left PLUS MINUS PLUS_DOT MINUS_DOT IN
 %left AST
+%right prec_base
+%left prec_app
 
 
 %type < ParseSyntax.t > toplevel
@@ -141,6 +147,8 @@ dataDef:
   { ParseSyntax.{name = i; constructors = cons_defs } }
 
 constructorDef:
+| PIPE cons = CAPID
+  { ParseSyntax.{name = cons; args = []} }
 | PIPE cons = CAPID OF LPAREN arg_sorts = separated_list(AST, basesort) RPAREN
    { ParseSyntax.{name = cons; args = arg_sorts} }
 | PIPE cons = CAPID OF arg_sorts = separated_list(AST, basesort) 
@@ -197,8 +205,11 @@ refinePredicateDef:
   }
 
 refineCase:
-| PIPE cons = CAPID args = separated_list(COMMA, ID) ALLOW body =  baselogic
+| PIPE cons = CAPID args = separated_list(COMMA, ID) ALLOW body =  clause
   { ParseSyntax.{name = cons; args = args; body = body} }
+  
+| PIPE cons = CAPID LPAREN args = separated_list(COMMA, ID) RPAREN ALLOW body =  clause
+  { ParseSyntax.{name = cons; args = args; body = body} }  
 
 
 /* **************************************************
@@ -229,7 +240,7 @@ predicateDef:
  }
 
 predicateBody:
-| pre = clause IMPLIES body = clause
+| pre = clause HORNIMPLIES body = clause
   { (Some pre, body) }
 | body = clause
   { (None, body) }
@@ -268,24 +279,59 @@ goal:
  ************************************************** */
 
 clause:
-| clauseAtom
-  {$1}
-| funName = ID args = list(clauseAtom) // h B(x) (fun i -> B(i>0)) ..
-  { `App (ParseSyntax.{head = funName; args = args}) }
-| clause AND clause
-  { `And ($1, $3) }
-| clause OR clause
-  { `Or ($1, $3) }  
-
+| boolClause
+  { $1 }
+| absClause
+  { $1 }
 
 clauseAtom:
-| LPAREN FUN args = nonempty_list(absArg) ALLOW body = clause RPAREN // (fun (x:int) -> x >0)
-  { `Abs (args, body) }
-| BASE LPAREN baselogic = baselogic RPAREN // Base(x >0)
-   { `Base baselogic }
-| LPAREN clause RPAREN
+| boolClauseAtom { $1 }
+| absClause { $1 }
+
+appClause:// application節が clauseとbaselogicの違い
+| funName = ID args = appArgs // h B(x) (fun i -> B(i>0)) ..
+%prec prec_app 
+  { `App (ParseSyntax.{head = funName; args = args}) }
+
+
+appArgs:
+| clauseAtom
+%prec prec_app
+  { [$1] }
+| clauseAtom appArgs
+%prec prec_app
+  { $1 :: $2 }
+
+boolClause:
+| boolClauseAtom
+  { $1 }
+| baselogic
+%prec prec_base
+  { `Base $1 }
+| boolClauseJoin
+ { $1 }
+
+
+boolClauseJoin:
+| boolClauseAtom AND boolClause
+%prec prec_clause
+  { `And ($1, $3) }
+| boolClauseAtom OR boolClause
+%prec prec_clause
+  { `Or ($1, $3) }
+
+boolClauseAtom:
+| appClause
+%prec prec_app 
+  { $1 }
+| LPAREN boolClauseJoin RPAREN
+  %prec prec_clause
   { $2 }
 
+
+absClause:
+| LPAREN FUN args = nonempty_list(absArg) ALLOW body = boolClause RPAREN // (fun (x:int) -> x >0)
+  { `Abs (args, body) }
 
 absArg:
 | LPAREN name = ID COLON sort = sort RPAREN
@@ -338,9 +384,11 @@ baselogicAtom:
 baselogic:
 | baselogicAtom
    {$1}
-| ID nonempty_list(baselogicAtom)
+| MEASUREID nonempty_list(baselogicAtom)
+%prec prec_app 
    { UF (ParseSyntax.sort_unfix, $1, $2) } 
 | CAPID list(baselogicAtom)
+%prec prec_app 
    { Cons (ParseSyntax.sort_unfix, $1, $2) } 
 | IF e1 = baselogic THEN e2 = baselogic ELSE e3 = baselogic
    %prec prec_if

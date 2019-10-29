@@ -45,7 +45,7 @@ type predicateDef = (* F x =mu \phi(x) => \phi(x, F) の形*)
 
 type refineCase = {name:Id.t;
                    args:Id.t list;
-                   body:BaseLogic.t}
+                   body:clause}
                 
 type refinePredicate =  {name: Id.t;
                          param: predicateArg list;
