@@ -18,6 +18,13 @@ let is_baseSort (sort:sort) =
   | `FunS _ -> false
   | _ -> true
 
+let gen_funSort (sort1:sort) (sort2:sort) =
+  match sort2 with
+    | `BoolS| `IntS |`DataS _ | `SetS _ as base_sort ->
+       `FunS ([sort1], base_sort)
+    | `FunS (arg_sorts, ret_sort) ->
+       `FunS (sort1::arg_sorts, ret_sort)
+       
 (* veryアドホック *)
 let rec to_baseLogic_sort:baseSort -> BaseLogic.sort = function
   | `BoolS -> BaseLogic.BoolS

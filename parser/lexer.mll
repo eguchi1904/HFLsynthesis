@@ -1,8 +1,17 @@
 {
 open Parser
+open Lexing
+let next_line lexbuf =
+  let pos = lexbuf.lex_curr_p in
+  lexbuf.lex_curr_p <-
+    { pos with pos_bol = lexbuf.lex_curr_pos;
+               pos_lnum = pos.pos_lnum + 1
+    }
+    
 }
 
 let space = [' ' '\t' '\r']
+let newline = ('\r'* '\n')
 let digit = ['0'-'9']
 let lower = ['a'-'z']
 let upper = ['A'-'Z']
@@ -12,12 +21,15 @@ rule main = parse
 | space+
  { main lexbuf }
 
-| "\n"
- { Lexing.new_line lexbuf; main lexbuf}
+| newline
+ { new_line lexbuf; main lexbuf}
 
 | "(*"               
     { comment lexbuf;
       main lexbuf }
+
+| "(*" space* "ignore" space* "*)"
+  { ignore_section lexbuf; main lexbuf }
 | "let"
  { LET }
 | "rec"
@@ -74,14 +86,22 @@ rule main = parse
 
 | "Base" 
  { BASE }
- 
-| "!="
+|"="
+ { EQUAL }
+
+| "<>"
  { NEQUAL }
 | "&&"
  { AND }
 | "||"
  { OR }
-| "==>"
+ | "==>"
+ { HORNIMPLIES }
+| "&&&"
+ { HORNAND }
+| "|||"
+ { HORNOR }
+| "=>"
  { IMPLIES }
 | "<==>"
  { IFF }
@@ -123,8 +143,6 @@ rule main = parse
  { PIPE }
 | ','
  { COMMA }
-| "_v"
- { VALVAR } 
 | "true"
  { TRUE }
 | "false"
@@ -132,8 +150,11 @@ rule main = parse
 | digit+ as n
  { INT (int_of_string n) }
 |eof
- { EOF } 
-| (lower|'_') (digit|lower|upper|'_'|'\'')* as id
+ { EOF }
+| '_'  lower (digit|lower|upper|'_'|'\'')* as id
+ { MEASUREID (Id.genid_const id) }
+ 
+| ('_'|lower) (digit|lower|upper|'_'|'\'')* as id
  { ID (Id.genid_const id) }
 | upper (digit|lower|upper|'_'|'\'')* as id
  { CAPID (Id.genid_const id) }
@@ -152,7 +173,19 @@ and comment = parse
 | "(*"
     { comment lexbuf;
       comment lexbuf }
+| newline
+ { new_line lexbuf; comment lexbuf}      
 | eof
     { Format.eprintf "warning: unterminated comment@." }
 | _
     { comment lexbuf }
+
+and ignore_section = parse
+| "(*" space* "endignore" space* "*)"
+ { () }
+|eof
+    { Format.eprintf "warning: unterminated ignore section@." }
+| newline
+ { new_line lexbuf; ignore_section lexbuf}          
+| _
+  { ignore_section lexbuf }

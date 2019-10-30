@@ -65,3 +65,8 @@ type elm =
 type t = elm list
 
   
+             (*
+arse後にやるべきこと
+valuevarの区別。
+変数のsortの決定
+  *)

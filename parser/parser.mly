@@ -36,6 +36,8 @@ open BaseLogic
 %token OR
 %token IMPLIES
 %token HORNIMPLIES
+%token HORNAND
+%token HORNOR
 %token IFF
 %token LESS
 %token LESS_EQUAL
@@ -64,7 +66,6 @@ open BaseLogic
 %token PIPE
 
 %token COMMA
-%token VALVAR
 %token TRUE
 %token FALSE
 %token <int> INT
@@ -75,13 +76,19 @@ open BaseLogic
 %token EOF
 
 %right prec_clause
+%nonassoc prec_abs
 %right prec_if
+
 %left NOT AND OR IMPLIES IFF 
 %left EQUAL NEQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL
-%left PLUS MINUS PLUS_DOT MINUS_DOT IN
+%left PLUS MINUS IN
 %left AST
-%right prec_base
-%left prec_app
+
+
+%left HORNOR HORNAND
+
+%nonassoc LPAREN ID
+%left prec_app // f x (fun ...).. 等で出来るだけreduceしないように
 
 
 %type < ParseSyntax.t > toplevel
@@ -117,6 +124,18 @@ toplevel:
 
 | EOF
 { [] }
+
+
+/* **************************************************
+   application argument:  head (X, X,...) or head X
+ ************************************************** */
+%public appArgs(X):
+| X
+ %prec prec_app
+  { [$1] }
+| hd_args = appArgs(X) tl_arg = X
+ %prec prec_app
+  { hd_args@[tl_arg] }
 
 
 
@@ -166,7 +185,7 @@ constructorDef:
  ************************************************** */
 measureDef:
 | LET attribute(MEASURE) termination = boption(attribute(TERMINATION)) option(REC)
-    measure = ID COLON arg_data = ID ALLOW ret_sort = basesort
+    measure = MEASUREID COLON arg_data = ID ALLOW ret_sort = basesort
      EQUAL FUNCTION cases = nonempty_list(measureCase)
   { DataType.{name = measure;
               termination = termination;
@@ -197,7 +216,7 @@ measureCase:
  ************************************************** */
  
 refinePredicateDef:
-| LET attribute(REFINEPREDICATE) option(REC) name = ID args = list(predicateArg)
+| LET attribute(REFINEPREDICATE) option(REC) name = ID args = appArgs(predicateArg)
    EQUAL FUNCTION cases = nonempty_list(refineCase)
   { ParseSyntax.{name = name;
                  param = args;
@@ -205,10 +224,10 @@ refinePredicateDef:
   }
 
 refineCase:
-| PIPE cons = CAPID args = separated_list(COMMA, ID) ALLOW body =  clause
+| PIPE cons = CAPID args = separated_list(COMMA, ID) ALLOW body = clause
   { ParseSyntax.{name = cons; args = args; body = body} }
   
-| PIPE cons = CAPID LPAREN args = separated_list(COMMA, ID) RPAREN ALLOW body =  clause
+| PIPE cons = CAPID LPAREN args = separated_list(COMMA, ID) RPAREN ALLOW body = clause
   { ParseSyntax.{name = cons; args = args; body = body} }  
 
 
@@ -232,7 +251,7 @@ fixpoint:
 
 predicateDef:
 | LET attribute(PREDICATE) fixpoint = option(attribute(fixpoint))
-    name = ID args = list(predicateArg) EQUAL body = predicateBody
+    option(REC) name = ID args = appArgs(predicateArg) EQUAL body = predicateBody
  { ParseSyntax.{name = name;
                 args = args;
 		fixpoint = fixpoint;
@@ -254,7 +273,7 @@ predicateBody:
 
 varSpecDec:
 | LET fun_name = attribute(specAttribute) fixpoint = option(attribute(fixpoint))
-    pred_name = ID args = list(predicateArg) EQUAL body = predicateBody
+    pred_name = ID args = appArgs(predicateArg) EQUAL body = predicateBody
  { (fun_name, ParseSyntax.{name = pred_name;
                            args = args;
                            fixpoint = fixpoint;
@@ -274,64 +293,38 @@ goal:
 | LET id = ID EQUAL QUESTION
   { id }
 
+
 /* **************************************************
    hfl clause
  ************************************************** */
 
 clause:
-| boolClause
+| hflClause
   { $1 }
-| absClause
+| clauseAtom
   { $1 }
 
-clauseAtom:
-| boolClauseAtom { $1 }
-| absClause { $1 }
-
-appClause:// application節が clauseとbaselogicの違い
-| funName = ID args = appArgs // h B(x) (fun i -> B(i>0)) ..
+hflClause:
+| clause HORNAND clause
+  { `And ($1, $3) }
+| clause HORNOR clause
+  { `Or ($1, $3) }
+| funName = ID args = appArgs(clauseAtom) // h B(x) (fun i -> B(i>0)) ..
 %prec prec_app 
   { `App (ParseSyntax.{head = funName; args = args}) }
+|  FUN args = nonempty_list(absArg) ALLOW body = clause // (fun (x:int) -> x >0)
+%prec prec_abs
+  { `Abs (args, body) }
 
-
-appArgs:
-| clauseAtom
-%prec prec_app
-  { [$1] }
-| clauseAtom appArgs
-%prec prec_app
-  { $1 :: $2 }
-
-boolClause:
-| boolClauseAtom
-  { $1 }
-| baselogic
-%prec prec_base
+clauseAtom:
+| baselogicAtom
+%prec prec_clause
   { `Base $1 }
-| boolClauseJoin
- { $1 }
-
-
-boolClauseJoin:
-| boolClauseAtom AND boolClause
-%prec prec_clause
-  { `And ($1, $3) }
-| boolClauseAtom OR boolClause
-%prec prec_clause
-  { `Or ($1, $3) }
-
-boolClauseAtom:
-| appClause
+| LPAREN hflClause RPAREN
 %prec prec_app 
-  { $1 }
-| LPAREN boolClauseJoin RPAREN
-  %prec prec_clause
   { $2 }
 
 
-absClause:
-| LPAREN FUN args = nonempty_list(absArg) ALLOW body = boolClause RPAREN // (fun (x:int) -> x >0)
-  { `Abs (args, body) }
 
 absArg:
 | LPAREN name = ID COLON sort = sort RPAREN
@@ -350,10 +343,8 @@ basesort:
 sort:
 | sortAtom
   { $1 }
-| arg = sortAtom ALLOW ret = basesort
- { `FunS ([arg], ret) }
-| arg = sortAtom AST other =  separated_nonempty_list(AST, sortAtom) ALLOW ret = basesort
- { `FunS (arg::other, ret) }
+| arg = sortAtom ALLOW ret = sort
+ { Hfl.gen_funSort arg ret }
 //| LPAREN args = separated_nonempty_list(AST, sortAtom) RPAREN ALLOW ret = basesort
 // { `FunS (args, ret) } 
 
@@ -376,7 +367,6 @@ baselogicAtom:
   { BaseLogic.Int $1 }
 | LSQBRAC elms= separated_list(COMMA, baselogic) RSQBRAC
   { BaseLogic.Set (ParseSyntax.sort_unfix, elms) }
-| VALVAR { Var (ParseSyntax.sort_unfix, Id.valueVar_id) }
 | ID { Var (ParseSyntax.sort_unfix, $1) }
 | LPAREN baselogic RPAREN { $2 }
 
@@ -384,10 +374,13 @@ baselogicAtom:
 baselogic:
 | baselogicAtom
    {$1}
-| MEASUREID nonempty_list(baselogicAtom)
+| MEASUREID baselogicAtom
 %prec prec_app 
-   { UF (ParseSyntax.sort_unfix, $1, $2) } 
-| CAPID list(baselogicAtom)
+   { UF (ParseSyntax.sort_unfix, $1, [$2]) }
+| CAPID
+%prec prec_app 
+  { Cons (ParseSyntax.sort_unfix, $1, []) } 
+| CAPID appArgs(baselogicAtom)
 %prec prec_app 
    { Cons (ParseSyntax.sort_unfix, $1, $2) } 
 | IF e1 = baselogic THEN e2 = baselogic ELSE e3 = baselogic
@@ -399,8 +392,8 @@ baselogic:
   { Plus ($1, $3) }   /*int_plus or set_union, decide later*/
 | baselogic MINUS baselogic
   { Minus ($1, $3) }  /*int_minus of set_diff, decide later*/
-| baselogic EQUAL EQUAL baselogic
-  { Eq ($1, $4) }
+| baselogic EQUAL baselogic
+  { Eq ($1, $3) }
 | baselogic NEQUAL baselogic
   { Neq ($1, $3) }
 | baselogic LESS baselogic
