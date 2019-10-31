@@ -64,9 +64,41 @@ type elm =
 
 type t = elm list
 
+
+
+let extract_data_defs (t:t) =
+  List.fold_right
+    (fun elm acc ->
+      match elm with
+      |DataDef typedef -> typedef::acc
+      |_ -> acc)
+    t
+    []
+
+let extracet_cons_env (t:t) = 
+    List.fold_right
+    (fun elm acc ->
+      match elm with
+      |DataDef {name = data_name; constructors = constructors} ->
+        let constructor_sort_list = 
+          List.map
+            (fun (cons:constructor) ->
+              if cons.args = [] then
+                (cons.name, `DataS data_name)
+              else
+                (cons.name, `FunS ((cons.args:>Hfl.sort list), `DataS data_name)))
+          constructors
+        in
+        M.add_list constructor_sort_list acc
+      |_ -> acc)
+    t
+    M.empty
+
+        
   
              (*
 arse後にやるべきこと
 valuevarの区別。
+applicationとrefinment dataのapplicationの区別
 変数のsortの決定
   *)

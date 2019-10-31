@@ -4,6 +4,19 @@ type sort = [baseSort | `FunS of (sort list * baseSort)]
 type topSort = [ `BoolS | `FunS of (sort list * [`BoolS ]) ] (* formulaのtoplevelの型 *)
 type abstSort = [`FunS of sort list * [`BoolS] ]             (* 命名が微妙 *)
 type funcSort = [`FunS of sort list * baseSort ]
+
+let rec sort2string: sort -> string = function
+  | `BoolS -> "bool"
+  | `IntS -> "int"
+  | `DataS i ->
+    Printf.sprintf "%s" (Id.to_string_readable i) 
+  | `SetS s -> Printf.sprintf "%s set " (sort2string (s:>sort))
+  | `FunS (args, rets) ->
+     let arg_str =
+       List.map sort2string args
+       |> String.concat "->"
+     in
+     arg_str^"->"^(sort2string (rets:>sort))
               
 let return_sort (sort:sort) :baseSort=
   match sort with

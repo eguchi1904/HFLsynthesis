@@ -107,6 +107,8 @@ rule main = parse
  { IFF }
 | "<"
  { LESS }
+| "<<"
+  { SUBSET }
 | "<="
  { LESS_EQUAL } 
 | ">"
@@ -115,10 +117,16 @@ rule main = parse
  { GREATER_EQUAL }
 | '-'
     { MINUS }
+| "--"
+   {DIFF}
 | '+' 
     { PLUS }
+| "++"
+   { UNION }
 | '*'
     { AST }
+| "**"
+  {INTERSECTION}
  | "->"
  { ALLOW }
 | ":"

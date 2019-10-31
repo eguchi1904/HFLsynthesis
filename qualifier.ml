@@ -2,6 +2,8 @@ type t = (Id.t * Hfl.baseSort) list * BaseLogic.t
 
 let make args body = (args, body)
 
+let reveal (t:t) = t
+
 let rec enumerate_possible_args
       penv ~must_include_vars ~used_vars must_include_var_is_used args_formal =
   match args_formal with

@@ -65,6 +65,7 @@ open BaseLogic
 %token RCURBRAC
 %token PIPE
 
+%token SUBSET UNION DIFF INTERSECTION
 %token COMMA
 %token TRUE
 %token FALSE
@@ -80,9 +81,9 @@ open BaseLogic
 %right prec_if
 
 %left NOT AND OR IMPLIES IFF 
-%left EQUAL NEQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL
-%left PLUS MINUS IN
-%left AST
+%left EQUAL NEQUAL GREATER GREATER_EQUAL LESS LESS_EQUAL SUBSET
+%left PLUS MINUS IN UNION DIFF
+%left AST INTERSECTION 
 
 
 %left HORNOR HORNAND
@@ -387,11 +388,17 @@ baselogic:
    %prec prec_if
    { If (e1, e2, e3) }
 | baselogic AST baselogic
-  { Times ($1, $3) }  /* int_mul or set_intersection, decide later*/
+  { Times ($1, $3) } 
+| baselogic INTERSECTION baselogic
+  { Intersect ($1, $3) }
 | baselogic PLUS baselogic
-  { Plus ($1, $3) }   /*int_plus or set_union, decide later*/
+  { Plus ($1, $3) } 
+| baselogic UNION baselogic
+  { Union ($1, $3) }
 | baselogic MINUS baselogic
-  { Minus ($1, $3) }  /*int_minus of set_diff, decide later*/
+  { Minus ($1, $3) } 
+| baselogic DIFF baselogic
+  { Diff ($1, $3) }
 | baselogic EQUAL baselogic
   { Eq ($1, $3) }
 | baselogic NEQUAL baselogic
@@ -399,7 +406,9 @@ baselogic:
 | baselogic LESS baselogic
   { Lt ($1, $3) }
 | baselogic LESS_EQUAL baselogic
-  { Le ($1, $3) } /*Le of set_subset, decide later*/
+  { Le ($1, $3) }
+| baselogic SUBSET baselogic
+  { Subset ($1, $3) }
 | baselogic GREATER baselogic
   { Gt ($1, $3) }
 | baselogic GREATER_EQUAL baselogic

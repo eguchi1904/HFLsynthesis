@@ -1,5 +1,14 @@
 module List = struct
   include List
+
+  let rec split_tail' l acc_hd =
+    match l with
+    |[] -> invalid_arg "list:split_tali"
+    |[x] -> (acc_hd, x)
+    |x::xs -> split_tail' xs (acc_hd@[x])
+
+  let split_tail l = split_tail' l []
+    
         
   let rec insert x i l =
     if i = 0 then
