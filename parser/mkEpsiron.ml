@@ -55,7 +55,22 @@ and to_hfl_clause:predicateDef M.t -> clause -> Hfl.clause =
           
 
 let separate_params: predicateArg list -> (Id.t * Hfl.abstSort) list * (Id.t * Hfl.sort) list =
-  (fun predicate_args -> assert false)
+  (fun predicate_args ->
+    List.fold_right
+      (fun predicate_arg (acc_param, acc_args) ->
+        if predicate_arg.is_param then
+          match predicate_arg.sort with
+          |`FunS (_, `BoolS) as abs_sort ->
+             ((predicate_arg.name, abs_sort)::acc_param, acc_args)
+          | _ -> assert false
+        else
+          (acc_param, (predicate_arg.name, predicate_arg.sort)::acc_args)
+      )
+      predicate_args
+   ([], [])
+
+
+   
 
 let align_by_arg: Id.t list -> Hfl.clause -> Hfl.clause list =
   (fun args clause -> assert false)

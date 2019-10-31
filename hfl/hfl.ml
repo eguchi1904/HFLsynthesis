@@ -71,7 +71,48 @@ type  clause = (*\psi(x,y): predicate type formula *)
 
   and  abstClause = [`Abs of (Id.t * sort) list * clause]
                   
+let rec fv = function
+  | `Base base -> BaseLogic.fv_include_v base
+  | `Abs (args, body) ->
+     List.fold_left
+       (fun acc (id, _) ->
+         S.remove id acc)
+       (fv body)
+       args
+  | `App {head = head; params = params; args = args} ->
+     let params = (params:>clause list )in
+     let params_fv =
+       List.fold_left S.union S.empty (List.map fv params)
+     in
+     let args_fv = 
+       List.fold_left S.union S.empty (List.map fv args)     
+     in
+     S.add
+       head
+       (S.union
+          params_fv
+          args_fv)
 
+  | `RData (name, params, arg) ->
+     let params = (params:>clause list )in
+     let params_fv =
+       List.fold_left S.union S.empty (List.map fv params)
+     in
+     let arg_fv = fv arg in
+     S.add
+       name
+       (S.union
+          params_fv
+          arg_fv)
+  | `Or (c1, c2)| `And (c1, c2) ->
+     S.union
+       (fv c1)
+       (fv c2)
+
+              
+              
+    
+    
 
 let extend_map_from_args
       (formal_args:(Id.t * sort) list)
