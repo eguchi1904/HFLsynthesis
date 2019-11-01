@@ -66,6 +66,8 @@ type t = elm list
 
 
 
+
+       
 let separete_params_from_application_args
     :predicateArg list -> Hfl.clause list -> Hfl.abstClause list * Hfl.clause list = 
   (fun predicate_args cs ->

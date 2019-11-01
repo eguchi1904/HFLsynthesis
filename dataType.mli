@@ -25,7 +25,8 @@ type measure = {name: Id.t
                ;returnSort: Hfl.baseSort
                ;matchCases: formulaCase list}
 
-
+(* 待て、idの同一性を保証したいぞ。お前applyするごとにid作っとるじゃん。それはあかん *)
+let add_formulaCase {constructor = cons1;             
              
 (* ************************************************** *)
 (* refineされたsort

@@ -160,12 +160,12 @@ rule main = parse
 |eof
  { EOF }
 | '_'  lower (digit|lower|upper|'_'|'\'')* as id
- { MEASUREID (Id.genid_const id) }
+ { MEASUREID (Id.of_string_symbol id) }
  
 | ('_'|lower) (digit|lower|upper|'_'|'\'')* as id
- { ID (Id.genid_const id) }
+ { ID (Id.of_string_symbol id) }
 | upper (digit|lower|upper|'_'|'\'')* as id
- { CAPID (Id.genid_const id) }
+ { CAPID (Id.of_string_symbol id) }
 | _
     { failwith
 	(Printf.sprintf "unknown token %s near line %d characters %d-%d"

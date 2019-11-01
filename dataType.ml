@@ -55,6 +55,32 @@ module Env = struct
      dataMeasuresTbl: (int, measure list) Hashtbl.t
     }
 
+    
+  let add_measure_case
+        (case:formulaCase)
+        t
+    =
+    match Hashtbl.find_opt t.constructors (Id.to_int cons) with
+    |None -> Hashtbl.add t.constructors (Id.to_int cons)  case
+    |Some measure_constraint ->
+      
+
+    
+
+  let add_measure measure t =
+    (* t.dataMeasureTbl の更新 *)
+    let {inputSort = `DataS data;_} = measure in
+    let measure_list = Hashtbl.find t.dataMeasuresTbl (Id.to_int data) in
+    let () = Hashtbl.replace
+               t.dataMeasuresTbl
+               (Id.to_int data)
+               (measure::measure_list)
+    in
+    (* t.constructors の更新 *)
+    List.iter add_measure_case measure.matchCases
+    
+    
+
   let list_constructor (t:t) data =
     match Hashtbl.find_opt t.datatypes (Id.to_int data)  with
     |Some def -> def.constructors 

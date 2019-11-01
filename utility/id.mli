@@ -14,7 +14,7 @@ val to_string: t -> string
 
 val to_string_readable: t -> string
 
-
+val of_string_symbol: string -> t
 
 (* val valueVar_id: t *)
 

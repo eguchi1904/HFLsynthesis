@@ -2,6 +2,7 @@ type t =  int
         
 let hash :(int, string) Hashtbl.t = Hashtbl.create 1000
 let counter = ref 0
+
             
 let genid (s:string) :t =
   let id = !counter in
@@ -39,5 +40,19 @@ let to_string_readable (t:t) :string=
 let to_int t = t
 
 
-
-           
+let of_string_counter = ref (-1)
+let rev_hash: (string, int) Hashtbl.t = Hashtbl.create 1000
+(* id refer to string symbol  *)
+(* use only in parser *)
+let of_string_symbol (s:string) :t =
+  match Hashtbl.find_opt rev_hash s with
+  |Some i -> i
+  |None ->
+    let i = !of_string_counter in
+    (Hashtbl.add rev_hash s i);
+    (Hashtbl.add hash i s);
+    (decr of_string_counter);
+    i
+    
+    
+  
