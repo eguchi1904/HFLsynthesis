@@ -49,7 +49,7 @@ type refine = {name: Id.t
 
 module Env = struct
   type t =
-    {constructors: (int, formulaCase) Hashtbl.t;
+    {constructors: (int, formulaCase) Hashtbl.t; (* constructorのmeasre情報が入っている *)
      datatypes: (int, definition) Hashtbl.t;
      refines: (int, refine) Hashtbl.t;
      dataMeasuresTbl: (int, measure list) Hashtbl.t

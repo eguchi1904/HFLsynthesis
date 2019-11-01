@@ -111,7 +111,17 @@ let rec fv = function
 
               
               
-    
+let rec separate_by_and clause =
+  match clause with
+  | `And (c1,c2) ->
+     (separate_by_and c1)@(separate_by_and c2)
+  | c -> [c]
+
+let rec concat_by_and (cs:clause list) =
+  match cs with
+  |[] -> `Base (BaseLogic.Bool true)
+  |[e] -> e
+  |c::cs' -> `And (c, concat_by_and cs')
     
 
 let extend_map_from_args
