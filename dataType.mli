@@ -25,9 +25,7 @@ type measure = {name: Id.t
                ;returnSort: Hfl.baseSort
                ;matchCases: formulaCase list}
 
-(* 待て、idの同一性を保証したいぞ。お前applyするごとにid作っとるじゃん。それはあかん *)
-let add_formulaCase {constructor = cons1;             
-             
+
 (* ************************************************** *)
 (* refineされたsort
  List p v = (v = NIl)
@@ -51,6 +49,14 @@ type refine = {name: Id.t
 module Env:sig
 
   type t
+
+  val init: unit -> t
+
+  val add_definition: t -> definition -> unit
+
+  val add_measure: t -> measure -> unit
+
+  val add_refine: t -> refine -> unit    
 
   val list_constructor: t -> Id.t ->  constructor list
 

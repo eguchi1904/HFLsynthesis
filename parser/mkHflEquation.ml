@@ -1,0 +1,34 @@
+open ParseSyntax
+open Extensions
+
+let rec g pmap ep t =
+  match t with
+  |QualifierDef _ :: other |Goal _ :: other
+   |DataDef _ :: other |MeasureDef _ :: other |RefinePredicateDef _ :: other ->
+    g pmap ep other
+
+  |PredicateDef predicate_def :: other ->
+    (* mk_fhornを使うだけか.. *)
+    let fhorn = mk_fhorn pmap predicate_def in
+    let name = predicate_def.name in
+    let fixpoint = predicate_def.fixpoint in
+    let () = Hfl.Equations.add ep name fixpoint fhorn in
+    g pmap ep other
+
+  |VarSpecDec (var_name, predicate_def) :: other ->
+    let fhorn = mk_specification_fhorn var_name pmap predicate_def in
+    let fixpoint = predicate_def.fixpoint in
+    let () = Hfl.Equations.add ep var_name fixpoint fhorn in
+    g pmap ep other
+
+  |[] -> ep
+
+
+let f pmap t =
+  g pmap (Hfl.Equations.make ()) t
+    
+    
+   
+  
+    
+    

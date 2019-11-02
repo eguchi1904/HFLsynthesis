@@ -89,17 +89,19 @@ let rec g pmap sort_env data_env = function
     g pmap sort_env data_env other
   |DataDef typedef :: other ->
     let data_def = mk_definition typedef other in (* 引数のidを決定する *)
-    let () = DataType.add_definition data_def data_env in
+    let () = DataType.Env.add_definition data_env data_def in
     g pmap sort_env data_env other
   |MeasureDef (measure:DataType.measure) :: other ->
-    let () = DataType.add_measure measure data_env in
+    let () = DataType.Env.add_measure data_env measure in
     g pmap sort_env data_env other
   |RefinePredicateDef refine_predicate :: other ->
     let refine = mk_refine pmap sort_env refine_predicate in
-    let () = DataType.add_refine refine data_env in
+    let () = DataType.Env.add_refine data_env refine  in
     g pmap sort_env data_env other
   |[] -> data_env
     
     
-    
+
+let f pmap sort_env t =
+  g pmap sort_env (DataType.Env.init ()) t
     

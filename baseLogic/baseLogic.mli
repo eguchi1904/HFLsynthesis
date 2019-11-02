@@ -121,5 +121,7 @@ val substitution : subst -> t -> t
 
 val replace : Id.t -> Id.t -> t -> t
 
+val replace_map: Id.t M.t -> t -> t
+
 
 

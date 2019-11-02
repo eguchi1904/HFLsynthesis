@@ -1,3 +1,4 @@
+open Extensions
 let sort_unfix = BaseLogic.DataS (Id.genid_const "unfix", [])
 
 
@@ -181,6 +182,29 @@ let mk_fhorn (pmap: predicateDef M.t) (predicate_def:predicateDef) :Hfl.fhorn=
      args = args;
      body = `Horn ([], c2)}    
 
+let mk_specification_fhorn var_name pmap (predicate_def:predicateDef) :Hfl.fhorn=
+  let params, args = separate_params predicate_def.args in
+  let args, ret_var = List.split_tail args in
+  let fhorn' =
+    match predicate_def.body with
+    |(Some c1, c2) ->
+      let c1 = to_hfl_clause pmap c1 in
+      let c2 = to_hfl_clause pmap c2 in
+      let arg_cs = align_by_arg (List.map fst args) c1 in
+      Hfl.{params = params;
+           args = args;
+           body = `Horn (arg_cs, c2)}
+    |None, c2 ->
+      let c2 = to_hfl_clause pmap c2 in
+      Hfl.{params = params;
+           args = args;
+           body = `Horn ([], c2)}
+  in
+  fhorn'
+  |> Hfl.replace_fhorn (fst ret_var) Id.valueVar_id
+  |> Hfl.replace_fhorn predicate_def.name var_name
+      
+  
      
 
 let extract_data_defs (t:t) =

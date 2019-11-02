@@ -19,6 +19,16 @@ type definition = {name: Id.t
  *)
 (* ************************************************** *)
 type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
+
+let top_forumulaCase {name = cons;
+                      args = args
+                     } =
+  {constructor = cons;
+   args = List.map fst args;
+   body = BaseLogic.Bool true
+  }
+
+  
 type measure = {name: Id.t
                ;termination: bool
                ;inputSort: [`DataS of Id.t]
@@ -26,6 +36,22 @@ type measure = {name: Id.t
                ;matchCases: formulaCase list}
 
 
+let add_formulaCase {constructor = cons; args = args1; body = e1}
+                    ({constructor = cons'; args = args2; body = e2} as case2)
+  =
+  if cons <> cons' then invalid_arg "add_formulaCase"
+  else
+    match e1 with
+    |BaseLogic.Bool true -> case2
+    | _ ->
+       assert (List.length args1 = List.length args2);
+       let map = M.add_list2 args1 args2 M.empty in
+       let e1' = BaseLogic.replace_map map e1 in
+       {constructor = cons;
+        args = args2;
+        body = BaseLogic.And (e1', e2)}
+
+  
              
 (* ************************************************** *)
 (* refineされたsort
@@ -55,19 +81,27 @@ module Env = struct
      dataMeasuresTbl: (int, measure list) Hashtbl.t
     }
 
+
+  let init () :t=
+    {constructors = Hashtbl.create 1024;
+     datatypes = Hashtbl.create 1024;
+     refines = Hashtbl.create 1024;
+     dataMeasuresTbl = Hashtbl.create 1024}
+    
     
   let add_measure_case
+        t    
         (case:formulaCase)
-        t
     =
+    let cons = case.constructor in
     match Hashtbl.find_opt t.constructors (Id.to_int cons) with
     |None -> Hashtbl.add t.constructors (Id.to_int cons)  case
-    |Some measure_constraint ->
+    |Some old_case ->
+      let new_case = add_formulaCase old_case case in
+      Hashtbl.replace t.constructors  (Id.to_int cons) new_case
       
 
-    
-
-  let add_measure measure t =
+  let add_measure t measure =
     (* t.dataMeasureTbl の更新 *)
     let {inputSort = `DataS data;_} = measure in
     let measure_list = Hashtbl.find t.dataMeasuresTbl (Id.to_int data) in
@@ -77,9 +111,20 @@ module Env = struct
                (measure::measure_list)
     in
     (* t.constructors の更新 *)
-    List.iter add_measure_case measure.matchCases
+    List.iter (add_measure_case t) measure.matchCases
     
-    
+  let add_definition t (def:definition) =
+    (* t.datatypesの更新 *)
+    let data = def.name in
+    let () = Hashtbl.add t.datatypes (Id.to_int data) def in
+    (* コンストラクタのmeasure_constraintの初期化 *)
+    let top_cases = List.map (top_forumulaCase) def.constructors in
+    List.iter (add_measure_case t) top_cases
+
+
+  let add_refine t (refine:refine) =
+    let name = refine.name in
+    Hashtbl.add t.refines (Id.to_int name) refine 
 
   let list_constructor (t:t) data =
     match Hashtbl.find_opt t.datatypes (Id.to_int data)  with

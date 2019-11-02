@@ -336,6 +336,14 @@ type fhorn
     ;args:(Id.t * sort) list
     ;body: qhorn}
 
+let replace_fhorn x y {params = params;
+                        args = args;
+                        body = qhorn} =
+  {params = params;
+   args = args;
+   body = replace_qhorn x y qhorn}
+  
+
   
 (* input:   \x. \y. \phi(x,y) 
    output:  \x'.\y'.\phi(x',y')                   
