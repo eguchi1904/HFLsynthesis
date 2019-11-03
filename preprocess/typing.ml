@@ -364,14 +364,15 @@ let g_qualifiers env q =
   let (args, body) = Qualifier.reveal q in
   let args' = (args:> (Id.t  * Hfl.sort) list) in
   let env' = M.add_list args' env in
-  let body' = g_base env body `BoolS in
+  let body' = g_base env' body `BoolS in
   Qualifier.make args body'
 
 
-let g_measure_case env data
+let g_measure_case env data out_sort
                    ({constructor = cons; args = caseargs; body = body}:formulaCase)
     :formulaCase
-                    =
+  =
+  let out_sort = (out_sort:>Hfl.sort) in
   match M.find_opt cons env with
   | Some (`DataS data') when data' = data->
      if caseargs <> [] then
@@ -381,7 +382,7 @@ let g_measure_case env data
      else
        {constructor = cons;
                  args = caseargs;
-                 body = g_base env body `BoolS}
+                 body = g_base env body out_sort}
   | Some (`FunS (arg_sort, `DataS data')) when data = data' ->
      if List.length arg_sort <> List.length caseargs then
        let mes = Printf.sprintf
@@ -393,7 +394,7 @@ let g_measure_case env data
        raise (TypeError mes)
      else
        let env' = M.add_list2 caseargs arg_sort env in
-       let body' = g_base env' body `BoolS in
+       let body' = g_base env' body out_sort in
        DataType.{constructor = cons;
                  args = caseargs;
                  body = body'}
@@ -533,7 +534,7 @@ let rec g acc env = function
                matchCases = cases} :: other ->
     
     let env' = M.add name (`FunS ([`DataS data], out_sort)) env in
-    let cases' = List.map (g_measure_case env' data) cases in
+    let cases' = List.map (g_measure_case env' data out_sort) cases in
     let measure_def' =
       {name = name;
        termination = terminaion;
@@ -574,7 +575,9 @@ let rec g acc env = function
   |VarSpecDec (var_name, predicate_def) :: other ->
     let predicate_def' = g_predicate_def env predicate_def in
     let predicate_sort = sort_of_predicate predicate_def in
-    let env' = M.add predicate_def.name predicate_sort env in
+    let env' = env
+               |> M.add predicate_def.name predicate_sort
+    in
     g (acc@[VarSpecDec (var_name, predicate_def')]) env' other
 
 

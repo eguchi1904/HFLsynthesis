@@ -137,6 +137,8 @@ module Env = struct
     (* t.datatypesの更新 *)
     let data = def.name in
     let () = Hashtbl.add t.datatypes (Id.to_int data) def in
+    (* t.dataMeasuresTblの初期化 *)
+    let () = Hashtbl.add t.dataMeasuresTbl (Id.to_int data) [] in
     (* コンストラクタのmeasure_constraintの初期化 *)
     let top_cases = List.map (top_forumulaCase) def.constructors in
     List.iter (add_measure_case t (`DataS data)) top_cases

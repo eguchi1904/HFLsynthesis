@@ -4,7 +4,7 @@ let unbound_id i = Id.to_string_readable i |>Id.genid_const
 
 let fresh env i =
   match M.find_opt i env with
-  |Some i' -> i' |None ->unbound_id i
+  |Some i' -> i' |None ->assert false
 
    
 let rec g_base (env:Id.t M.t) e =
@@ -95,7 +95,7 @@ let g_qualifier env qualifier =
   let new_arg_id = List.map fst new_args in
   let env' = M.add_list2 old_arg_id new_arg_id env in
   let body' = g_base env' body in
-  Qualifier.make args body'
+  Qualifier.make new_args body'
 
 
 (* constructorのidの付け替え、 *)

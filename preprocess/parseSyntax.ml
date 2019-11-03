@@ -114,7 +114,9 @@ and to_hfl_clause:predicateDef M.t -> clause -> Hfl.clause =
               hfl_cs
           in
           `App {head = head; params = params; args = args}
-        |None -> assert false)
+        |None ->                (* 引数のpredicate *)
+          `App {head = head; params = []; args = hfl_cs}
+       )
   
     | `RData (id, abst_cs, c) ->
        `RData (id,
