@@ -298,7 +298,7 @@ and g_clause env (c:clause) sort=
   | `RData (rdata, cs, c)  when sort = `BoolS ->
      (match M.find_opt rdata env with
       |Some (`FunS (args, `BoolS)) ->
-        if List.length args <> List.length cs then
+        if List.length args <> (List.length cs + 1) then
           let mes = Printf.sprintf
                       "%s's expected to have %d arguments, but got %d"
                       (Id.to_string_readable rdata)

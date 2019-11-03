@@ -36,14 +36,14 @@ let rec extract_predicate_def pmap t =
   |[] -> pmap
 
 
-  
-  
 
     
 let f filepath =
   let syntax, sort_env = parse filepath
                          |> Alpha.f (* alpha変換 *)
+                         |> ClassifyRefineApp.f                       
                          |> Typing.f (* type check/infer *)
+
   in
   let pmap = extract_predicate_def M.empty syntax in
   let data_env = MkDataTypeEnv.f pmap sort_env syntax in
