@@ -26,13 +26,27 @@ let rec g pmap ep t =
        
 let add_constructor data_env ep =
   DataType.Env.fold_datatype
-    (fun data def () ->
+    (fun data (def:DataType.definition) () ->
+      List.iter
+        (fun (cons:DataType.constructor) ->
+          let fhorn = DataType.Env.constructor_specification
+                        data_env
+                        (`DataS data)
+                        cons.name
+          in
+          Hfl.Equations.add ep cons.name None fhorn)
+        def.constructors)
+    data_env
+    ()
+          
       
   
 
 
 let f (data_env:DataType.Env.t) pmap t =
   let ep = g pmap (Hfl.Equations.make ()) t in
+  let () = add_constructor data_env ep in
+  ep
   
     
     

@@ -98,11 +98,21 @@ module Env = struct
       t.datatypes
     seed
 
+
     
   let add_measure_case
-        t    
+        t
+        (`DataS data)
         (case:formulaCase)
     =
+    let e' = BaseLogic.Eq (BaseLogic.Var (BaseLogic.DataS (data, []), Id.valueVar_id),
+                          case.body)
+    in
+    (* constructor用に変換 *)
+    let case = {constructor = case.constructor;
+                args = case.args;
+                body = e'}
+    in
     let cons = case.constructor in
     match Hashtbl.find_opt t.constructors (Id.to_int cons) with
     |None -> Hashtbl.add t.constructors (Id.to_int cons)  case
@@ -121,7 +131,7 @@ module Env = struct
                (measure::measure_list)
     in
     (* t.constructors の更新 *)
-    List.iter (add_measure_case t) measure.matchCases
+    List.iter (add_measure_case t measure.inputSort) measure.matchCases
     
   let add_definition t (def:definition) =
     (* t.datatypesの更新 *)
@@ -129,7 +139,7 @@ module Env = struct
     let () = Hashtbl.add t.datatypes (Id.to_int data) def in
     (* コンストラクタのmeasure_constraintの初期化 *)
     let top_cases = List.map (top_forumulaCase) def.constructors in
-    List.iter (add_measure_case t) top_cases
+    List.iter (add_measure_case t (`DataS data)) top_cases
 
 
   let add_refine t (refine:refine) =
@@ -155,14 +165,27 @@ module Env = struct
       List.filter (fun measure -> measure.termination) measure_list
     |None -> invalid_arg ("data "^(Id.to_string_readable data)^" not defined")
 
-           
-  (* let constructor_specification t (`DataS data) cons = *)
-  (*   let {args = args; body = e;_} = *)
-  (*     measure_constraint_of_constructor t (`DataS data) cons *)
-  (*   in *)
+  (* [cons] x xs _v = _v = cons x xs && len _v = len xs + 1 *)
+  let constructor_specification t (`DataS data) cons =
+    let {args = args; body = e;_} =
+      measure_constraint_of_constructor t (`DataS data) cons
+    in
+    let args_es =
+      List.map
+        (fun (x, sort) ->
+          BaseLogic.Var (Hfl.to_baseLogic_sort sort, x))
+      args
+    in
+    let v_eq_cons =
+      let open BaseLogic in
+      `Base (Eq ((Var ((DataS (data, [])), Id.valueVar_id)),
+                 (Cons ((DataS (data, [])),cons, args_es)))
+            )
+    in
+    Hfl.{params = [];
+         args = (args:> (Id.t * Hfl.sort) list);
+         body = `Horn ([], `And (v_eq_cons, `Base e))}
     
-    
-           
 
            
   let unfold_refine t (cons:constructor) (rdata, real_params) :(Id.t * Hfl.clause) list =

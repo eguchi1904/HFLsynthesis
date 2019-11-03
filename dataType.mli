@@ -58,6 +58,8 @@ module Env:sig
 
   val add_refine: t -> refine -> unit
 
+  val constructor_specification: t -> [`DataS of Id.t ] -> Id.t -> Hfl.fhorn
+
   val fold_datatype:(Id.t ->definition ->'a ->'a) ->t ->'a ->'a
 
   val list_constructor: t -> Id.t ->  constructor list

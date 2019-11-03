@@ -87,8 +87,10 @@ let mk_refine pmap sort_env ({name = name; param = predicate_args; cases = cases
 
 
 (* add type annotation to constructor's arguments *)
-let mk_measure_case sort_env ({constructor = cons; args = args; body = e}:formulaCase)
-  :DataType.formulaCase =
+let mk_measure_case
+      sort_env
+      ({constructor = cons; args = args; body = e}:formulaCase)
+    :DataType.formulaCase =
   if args = [] then
     DataType.{constructor  = cons;
               args  = [];
@@ -112,6 +114,7 @@ let mk_measure sort_env (measure:measure) :DataType.measure =
    inputSort = measure.inputSort;
    returnSort = measure.returnSort;
    matchCases = List.map (mk_measure_case sort_env) measure.matchCases}
+  
    
 let rec g pmap sort_env data_env = function
   |QualifierDef _ :: other |Goal _ :: other |VarSpecDec _ :: other |PredicateDef _ :: other ->
