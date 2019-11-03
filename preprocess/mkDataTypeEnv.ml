@@ -88,7 +88,7 @@ let mk_refine pmap sort_env ({name = name; param = predicate_args; cases = cases
 
 (* add type annotation to constructor's arguments *)
 let mk_measure_case
-      sort_env
+      (sort_env:Hfl.sort M.t)
       ({constructor = cons; args = args; body = e}:formulaCase)
     :DataType.formulaCase =
   if args = [] then
@@ -107,6 +107,7 @@ let mk_measure_case
         {constructor = cons;
          args = args;
          body = e}
+      | _ -> assert false
 
 let mk_measure sort_env (measure:measure) :DataType.measure =
   {name = measure.name;

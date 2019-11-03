@@ -249,6 +249,6 @@ let extracet_cons_env (t:t) =
     (*
 arse後にやるべきこと
 valuevarの区別。
-applicationとrefinment dataのapplicationの区別
+applicationとrefinment dataのapplicationの区別:not yet
 変数のsortの決定:done
   *)

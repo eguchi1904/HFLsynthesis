@@ -115,31 +115,31 @@ let g_typedef env {name = name; constructors = constructor_list } =
 
 let g_measure_case
       env
-      ({constructor = cons; args = args ; body =  body}:DataType.formulaCase)
+      ({constructor = cons; args = args ; body =  body}:formulaCase)
   =
   let cons' = fresh env cons in
   let new_args = List.map newid args in
   let env' = M.add_list2 args new_args env in
   let body' = g_base env' body in
-  DataType.{constructor = cons'; args = new_args ; body =  body'}  
+ {constructor = cons'; args = new_args ; body =  body'}  
 
   
   
   
 
-let g_measure env DataType.{name = name;
-                            termination = terminaion;
-                            inputSort = `DataS data;
-                            returnSort = out_sort;
-                            matchCases = cases}   =
+let g_measure env {name = name;
+                   termination = terminaion;
+                   inputSort = `DataS data;
+                   returnSort = out_sort;
+                   matchCases = cases}   =
   let name' = newid name in
   let env' = M.add name name' env in (* measure名をfresh *)
   let cases' = List.map (g_measure_case env') cases in
-  DataType.{name = name';
-            termination = terminaion;
-            inputSort = `DataS data;
-            returnSort = out_sort;
-            matchCases = cases'},
+  {name = name';
+   termination = terminaion;
+   inputSort = `DataS data;
+   returnSort = out_sort;
+   matchCases = cases'},
   env'
 
 let g_refine_case env

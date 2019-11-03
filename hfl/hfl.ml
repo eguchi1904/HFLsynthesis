@@ -31,6 +31,12 @@ let is_baseSort (sort:sort) =
   | `FunS _ -> false
   | _ -> true
 
+let cast2baseSort (sort:sort) =
+  match sort with
+  | `BoolS | `IntS | `DataS _ | `SetS _ as base_sort -> base_sort
+  | _ -> invalid_arg "cast2baseSort"
+      
+
 let gen_funSort (sort1:sort) (sort2:sort) =
   match sort2 with
     | `BoolS| `IntS |`DataS _ | `SetS _ as base_sort ->
