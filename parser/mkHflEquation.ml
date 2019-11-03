@@ -23,9 +23,17 @@ let rec g pmap ep t =
 
   |[] -> ep
 
+       
+let add_constructor data_env ep =
+  DataType.Env.fold_datatype
+    (fun data def () ->
+      
+  
 
-let f pmap t =
-  g pmap (Hfl.Equations.make ()) t
+
+let f (data_env:DataType.Env.t) pmap t =
+  let ep = g pmap (Hfl.Equations.make ()) t in
+  
     
     
    

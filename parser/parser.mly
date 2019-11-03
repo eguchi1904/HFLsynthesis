@@ -96,6 +96,7 @@ open BaseLogic
 %type < Hfl.sort > sort
 %type < Hfl.baseSort > basesort
 %type < ParseSyntax.clause > clause
+%type < ParseSyntax.measure > measureDef
 %start toplevel
 
 
@@ -188,23 +189,23 @@ measureDef:
 | LET attribute(MEASURE) termination = boption(attribute(TERMINATION)) option(REC)
     measure = MEASUREID COLON arg_data = ID ALLOW ret_sort = basesort
      EQUAL FUNCTION cases = nonempty_list(measureCase)
-  { DataType.{name = measure;
-              termination = termination;
-	      inputSort = `DataS arg_data;
-	      returnSort = ret_sort;
-	      matchCases = cases}
+  { {name = measure;
+     termination = termination;
+     inputSort = `DataS arg_data;
+     returnSort = ret_sort;
+     matchCases = cases}
   }
 
 measureCase:
 | PIPE cons = CAPID args = separated_list(COMMA, ID) ALLOW body = baselogic
-  { DataType.{constructor = cons;
-              args = args;
-              body = body}
+   { {constructor = cons;
+      args = args;
+      body = body}
    }
 | PIPE cons = CAPID LPAREN args = separated_list(COMMA, ID) RPAREN ALLOW body = baselogic
-  { DataType.{constructor = cons;
-              args = args;
-              body = body}
+  { {constructor = cons;
+     args = args;
+     body = body}
    }   
 	      
 /* **************************************************

@@ -18,13 +18,13 @@ type definition = {name: Id.t
    
  *)
 (* ************************************************** *)
-type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
+type formulaCase = {constructor: Id.t ; args: (Id.t* Hfl.baseSort) list ; body: BaseLogic.t }
 
 let top_forumulaCase {name = cons;
                       args = args
                      } =
   {constructor = cons;
-   args = List.map fst args;
+   args =  args;
    body = BaseLogic.Bool true
   }
 
@@ -45,7 +45,11 @@ let add_formulaCase {constructor = cons; args = args1; body = e1}
     |BaseLogic.Bool true -> case2
     | _ ->
        assert (List.length args1 = List.length args2);
-       let map = M.add_list2 args1 args2 M.empty in
+       let map = M.add_list2
+                   (List.map fst args1)
+                   (List.map fst args2)
+                   M.empty
+       in
        let e1' = BaseLogic.replace_map map e1 in
        {constructor = cons;
         args = args2;
@@ -87,7 +91,13 @@ module Env = struct
      datatypes = Hashtbl.create 1024;
      refines = Hashtbl.create 1024;
      dataMeasuresTbl = Hashtbl.create 1024}
-    
+
+  let fold_datatype (f:Id.t -> definition -> 'a-> 'a) t seed =
+    Hashtbl.fold
+      (fun i definition acc -> f (Id.of_int i) definition acc)
+      t.datatypes
+    seed
+
     
   let add_measure_case
         t    
@@ -132,19 +142,29 @@ module Env = struct
     |None -> invalid_arg ("data "^(Id.to_string_readable data)^" not defined")
 
 
-  let measure_constraint_of_constructor t (`Data data) cons =
+  let measure_constraint_of_constructor t (`DataS data) cons =
     match Hashtbl.find_opt t.constructors (Id.to_int cons) with
     |Some formula_case ->
       assert (formula_case.constructor = cons);
       formula_case
     |None -> invalid_arg ("constructor "^(Id.to_string_readable cons)^" not defined")
 
-  let termination_measure t (`Data data) =
+  let termination_measure t (`DataS data) =
     match Hashtbl.find_opt t.dataMeasuresTbl (Id.to_int data) with
     |Some measure_list ->
       List.filter (fun measure -> measure.termination) measure_list
     |None -> invalid_arg ("data "^(Id.to_string_readable data)^" not defined")
 
+           
+  (* let constructor_specification t (`DataS data) cons = *)
+  (*   let {args = args; body = e;_} = *)
+  (*     measure_constraint_of_constructor t (`DataS data) cons *)
+  (*   in *)
+    
+    
+           
+
+           
   let unfold_refine t (cons:constructor) (rdata, real_params) :(Id.t * Hfl.clause) list =
     match Hashtbl.find_opt t.refines (Id.to_int rdata) with
     |None -> assert false

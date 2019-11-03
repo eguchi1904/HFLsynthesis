@@ -53,7 +53,7 @@ let generator data_env qualifiers e_depth =
          penv
        in  
        let DataType.{constructor = cons'; args=args'; body = measure_constraint} = 
-         DataType.Env.measure_constraint_of_constructor data_env (`Data data) cons 
+         DataType.Env.measure_constraint_of_constructor data_env (`DataS data) cons 
        in
        assert (cons' = cons);
        match scrutinee_prop with

@@ -369,7 +369,8 @@ let g_qualifiers env q =
 
 
 let g_measure_case env data
-                   ({constructor = cons; args = caseargs; body = body}:DataType.formulaCase)
+                   ({constructor = cons; args = caseargs; body = body}:formulaCase)
+    :formulaCase
                     =
   match M.find_opt cons env with
   | Some (`DataS data') when data' = data->
@@ -378,7 +379,7 @@ let g_measure_case env data
                 ((Id.to_string_readable cons)^
                    "is a scalar constructor, but this pattern havs arguments"))
      else
-       DataType.{constructor = cons;
+       {constructor = cons;
                  args = caseargs;
                  body = g_base env body `BoolS}
   | Some (`FunS (arg_sort, `DataS data')) when data = data' ->
@@ -504,12 +505,14 @@ let g_predicate_def env predicate_def =
   
   
   
-let rec g env = function
+let rec g acc env = function
   |QualifierDef qualifiers :: other->
-    (QualifierDef (List.map (g_qualifiers env) qualifiers))
-    :: (g env other)
+    g
+      (acc@[(QualifierDef (List.map (g_qualifiers env) qualifiers))])
+      env
+      other
    
-  |DataDef typedef :: othere->
+  |DataDef typedef :: other->
     let data = typedef.name in
     let constructor_sort_list =
       List.map
@@ -521,23 +524,23 @@ let rec g env = function
         typedef.constructors
     in
     let env' = M.add_list constructor_sort_list env in
-    (DataDef typedef) :: (g env' othere)
+    g (acc@[DataDef typedef]) env' other
 
-  |MeasureDef DataType.{name = name;
-                        termination = terminaion;
-                        inputSort = `DataS data;
-                        returnSort = out_sort;
-                        matchCases = cases} :: othere->
+  |MeasureDef {name = name;
+               termination = terminaion;
+               inputSort = `DataS data;
+               returnSort = out_sort;
+               matchCases = cases} :: other ->
     
     let env' = M.add name (`FunS ([`DataS data], out_sort)) env in
     let cases' = List.map (g_measure_case env' data) cases in
     let measure_def' =
-      DataType.{name = name;
-                termination = terminaion;
-                inputSort = `DataS data;
-                returnSort = out_sort;
-                matchCases = cases'} in
-    (MeasureDef measure_def') :: g env' othere
+      {name = name;
+       termination = terminaion;
+       inputSort = `DataS data;
+       returnSort = out_sort;
+       matchCases = cases'} in
+    g (acc@[MeasureDef measure_def']) env' other
  
   |RefinePredicateDef {name = name;
                        param = predicate_args;
@@ -559,24 +562,25 @@ let rec g env = function
                                  param = predicate_args;
                                  cases = cases'}
     in
-    (RefinePredicateDef refine_predicate_def'):: (g env' other)
+    g (acc@[RefinePredicateDef refine_predicate_def']) env' other
 
   |PredicateDef predicate_def
    :: other ->
     let predicate_def' = g_predicate_def env predicate_def in
     let predicate_sort = sort_of_predicate predicate_def in
     let env' = M.add predicate_def.name predicate_sort env in
-    (PredicateDef predicate_def')::(g env' other)
+    g (acc@[PredicateDef predicate_def']) env' other
 
   |VarSpecDec (var_name, predicate_def) :: other ->
     let predicate_def' = g_predicate_def env predicate_def in
     let predicate_sort = sort_of_predicate predicate_def in
     let env' = M.add predicate_def.name predicate_sort env in
-    (VarSpecDec (var_name, predicate_def'))::(g env' other)
+    g (acc@[VarSpecDec (var_name, predicate_def')]) env' other
 
-  |Goal id :: other-> Goal id :: (g env other)
 
-  |[] -> []
+  |Goal id :: other-> g (acc@[Goal id]) env other
+
+  |[] -> acc, env
   
   
-let f t = g M.empty t
+let f t = g [] M.empty t

@@ -18,7 +18,7 @@ type definition = {name: Id.t
    
  *)
 (* ************************************************** *)
-type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
+type formulaCase = {constructor: Id.t ; args: (Id.t * Hfl.baseSort) list ; body: BaseLogic.t }
 type measure = {name: Id.t
                ;termination: bool
                ;inputSort: [`DataS of Id.t]
@@ -56,17 +56,19 @@ module Env:sig
 
   val add_measure: t -> measure -> unit
 
-  val add_refine: t -> refine -> unit    
+  val add_refine: t -> refine -> unit
+
+  val fold_datatype:(Id.t ->definition ->'a ->'a) ->t ->'a ->'a
 
   val list_constructor: t -> Id.t ->  constructor list
 
-  val measure_constraint_of_constructor: t -> [`Data of Id.t] -> Id.t -> formulaCase
+  val measure_constraint_of_constructor: t -> [`DataS of Id.t] -> Id.t -> formulaCase
     
   (* list なら、 len  など、
      停止性を保証するために使って良い下限のあるint型を返すmeasure
      ユーザがannotate
    *)
-  val termination_measure: t -> [`Data of Id.t] -> measure list
+  val termination_measure: t -> [`DataS of Id.t] -> measure list
 
 
   (* 

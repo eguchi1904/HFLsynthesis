@@ -8,7 +8,16 @@ type constructor = {name:Id.t;
                    }
 type typedef = {name: Id.t
                ;constructors: constructor list}
-                 
+
+(* DataType.formulaCaseとの違いは、argsにtype annotationがついているかどうか *)
+type formulaCase = {constructor: Id.t ; args: Id.t list ; body: BaseLogic.t }
+type measure = {name: Id.t
+               ;termination: bool
+               ;inputSort: [`DataS of Id.t]
+               ;returnSort: Hfl.baseSort
+               ;matchCases: formulaCase list}
+
+
 
 
 type predicateArg =
@@ -56,7 +65,7 @@ type refinePredicate =  {name: Id.t;
 type elm =
   | QualifierDef of Qualifier.t list
   | DataDef of typedef
-  | MeasureDef of DataType.measure
+  | MeasureDef of measure
   | RefinePredicateDef of refinePredicate
   | PredicateDef of predicateDef             
   | VarSpecDec of (Id.t * predicateDef)

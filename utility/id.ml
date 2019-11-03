@@ -39,6 +39,8 @@ let to_string_readable (t:t) :string=
 
 let to_int t = t
 
+let of_int t = t
+
 
 let rev_hash: (string, int) Hashtbl.t = Hashtbl.create 1000
 (* id refer to string symbol  *)

@@ -4,16 +4,16 @@ open ParseSyntax
 let mk_definition (typedef:typedef) other =
   let data = typedef.name in
   match List.find_opt 
-          (function |MeasureDef (measure:DataType.measure)
+          (function |MeasureDef (measure:measure)
                     when measure.inputSort = `DataS data
                      -> true
                     |_ -> false)
           other
   with
-  |Some MeasureDef (measure:DataType.measure) ->
+  |Some MeasureDef (measure:measure) ->
     let cons_args_id =
       List.map
-        (fun (case:DataType.formulaCase) -> (case.constructor, case.args))
+        (fun (case:formulaCase) -> (case.constructor, case.args))
         measure.matchCases
     in
     let dataType_cons_list =
@@ -55,6 +55,10 @@ let mk_refine_case pmap sort_env ({name = cons; args = args; body = c}:refineCas
     match M.find cons sort_env with
     | `FunS (arg_sort, _) ->
        (assert (List.length arg_sort = List.length arg_id_cs));
+       let arg_sort = List.map (function | `BoolS|`IntS|`DataS _ as b -> b
+                                         | _ -> assert false)
+                               arg_sort
+       in
        let args =
          List.map2
            (fun (a,b) c -> (a, c, b))
@@ -80,9 +84,34 @@ let mk_refine pmap sort_env ({name = name; param = predicate_args; cases = cases
   DataType.{name = name;
             param = param;
             constructors = cases'}
-  
-  
-                      
+
+
+(* add type annotation to constructor's arguments *)
+let mk_measure_case sort_env ({constructor = cons; args = args; body = e}:formulaCase)
+  :DataType.formulaCase =
+  if args = [] then
+    DataType.{constructor  = cons;
+              args  = [];
+              body = e}
+  else
+    match M.find cons sort_env with
+      | `FunS (arg_sorts, _) ->
+         let arg_sorts = List.map (function | `BoolS|`IntS|`DataS _ as b -> b
+                                           | _ -> assert false)
+                                 arg_sorts
+         in        
+        (assert (List.length arg_sorts = List.length args));
+        let args = List.combine args arg_sorts in
+        {constructor = cons;
+         args = args;
+         body = e}
+
+let mk_measure sort_env (measure:measure) :DataType.measure =
+  {name = measure.name;
+   termination = measure.termination;
+   inputSort = measure.inputSort;
+   returnSort = measure.returnSort;
+   matchCases = List.map (mk_measure_case sort_env) measure.matchCases}
    
 let rec g pmap sort_env data_env = function
   |QualifierDef _ :: other |Goal _ :: other |VarSpecDec _ :: other |PredicateDef _ :: other ->
@@ -91,8 +120,9 @@ let rec g pmap sort_env data_env = function
     let data_def = mk_definition typedef other in (* 引数のidを決定する *)
     let () = DataType.Env.add_definition data_env data_def in
     g pmap sort_env data_env other
-  |MeasureDef (measure:DataType.measure) :: other ->
-    let () = DataType.Env.add_measure data_env measure in
+  |MeasureDef (measure:measure) :: other ->
+    let measure' = mk_measure sort_env measure in
+    let () = DataType.Env.add_measure data_env measure' in
     g pmap sort_env data_env other
   |RefinePredicateDef refine_predicate :: other ->
     let refine = mk_refine pmap sort_env refine_predicate in
