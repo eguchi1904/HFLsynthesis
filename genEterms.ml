@@ -2,6 +2,81 @@ module Seq = Base.Sequence
 type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
 
 
+(* for debug: specify the position of e-term *)
+
+module Context:sig
+  type t
+
+  val empty: t
+
+  val push_arg: Program.e -> t -> t
+
+  val push_head: Id.t -> t -> t
+
+  val to_string: t -> string
+
+end = struct
+
+  type t = (Id.t * Program.e list) list
+
+  let empty = []
+            
+  let push_arg e = function
+    |(head, args)::other ->
+      (head, e::args)::other
+    |[] -> assert false
+
+  let push_head head t =
+    (head, [])::t
+
+  let to_string_elm (head, rev_args) = 
+    let args_str =
+      List.fold_left
+        (fun acc e ->
+          (Program.to_string_e e)^" "^acc)
+        "??"        
+        rev_args
+    in
+    (Id.to_string_readable head)^" "^args_str
+
+
+  let to_string t =
+    if t = [] then  "??"
+    else
+      List.fold_left
+        (fun acc elm ->
+          (to_string_elm elm)^"\n> "^acc)
+        ""
+        t
+end
+
+module Log:sig
+  val log_trial: Context.t -> AbductionCandidate.t -> PathEnv.t ->  Id.t -> Constraint.t -> unit
+
+  val log_trial_result: bool -> unit
+end = struct
+  let log_cha = open_out "eterm_search.log"
+  let log_trial ctx abduction_candi path_env  var cons  =
+    Printf.fprintf
+      log_cha
+      "TRIAL:\n %s \n?? <- %s\nabduction candidate:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n"
+      (Context.to_string ctx)
+      (Id.to_string_readable var)
+      (AbductionCandidate.to_string abduction_candi)
+      (PathEnv.to_string path_env)
+      (Constraint.to_string cons)
+
+  let log_trial_result valid =
+    if valid then
+      Printf.fprintf
+        log_cha
+        "\nTRIAL SUCSESS!\n\n\n"
+    else
+      Printf.fprintf
+        log_cha
+        "\n\nTRIAL fail\n\n\n"      
+end  
+
 let choose_head_candidates ep penv sort spec =
   (* ひとまずこれだけ *)
   PathEnv.find_heads (Hfl.return_sort sort) penv
@@ -108,10 +183,10 @@ let mk_args_prop (args:(Id.t * (Program.e * upProp)) list) sorts =
 (* ************************************************** *)
 
             
-let gen_vars: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
+let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
               -> (Id.t * Hfl.baseSort) list -> Hfl.qhorn list
               -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
-  (fun ep penv abduction_candidates scalar_heads spec ->
+  (fun ctx ep penv abduction_candidates scalar_heads spec ->
     let abduction_candidates_sequence =
       Seq.shift_right
         (AbductionCandidate.strengthen abduction_candidates)
@@ -134,7 +209,10 @@ let gen_vars: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
                                  penv
                    in
                    let cons = Constraint.make ep penv' ~prop:leaf_prop ~spec:spec in
-                   if Constraint.is_valid cons then
+                   let () = Log.log_trial ctx abduction_candidate penv id cons in                   
+                   let valid = Constraint.is_valid cons in
+                   let () = Log.log_trial_result valid in
+                   if  valid then
                      Seq.Step.Yield ((Program.{head = id; args = []},
                                       leaf_prop,
                                       abduction_candidate),
@@ -147,15 +225,15 @@ let gen_vars: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
 
 
 
-let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list
+let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list
                   -> int
                   -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) Seq.t = 
-  (fun ep penv abduction_candidate arg_specs depth ->
+  (fun ctx ep penv abduction_candidate arg_specs depth ->
     match arg_specs with
     |[] -> Seq.singleton ([], abduction_candidate)
     |(x, sort, spec)::lest_specs ->
       let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
-        f ep penv abduction_candidate sort spec depth
+        f ctx ep penv abduction_candidate sort spec depth
       in
       Seq.concat_map
         term_for_x
@@ -163,7 +241,8 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t 
           let ex_conds =
             List.map (Hfl.replace x Id.valueVar_id) clauses in
           let penv' = PathEnv.add_condition_list ex_conds penv in
-          gen_args ep penv' abduction_candidate lest_specs depth
+          let ctx = Context.push_arg ex ctx in
+          gen_args ctx ep penv' abduction_candidate lest_specs depth
           |> Seq.map
                ~f:(fun (args, acc_abduction_candidate) ->
                  (x,(ex, ex_prop))::args, acc_abduction_candidate)
@@ -171,10 +250,11 @@ let rec gen_args: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t 
   )
   
 
-and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list
+and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list
                  -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
-  (fun ep penv abduction_candidate spec depth (head,`FunS (arg_sorts, ret_sort))  ->
+  (fun ctx ep penv abduction_candidate spec depth (head,`FunS (arg_sorts, ret_sort))  ->
+    let ctx = Context.push_head head ctx in
     match split_arg_spec_return_prop ep penv head spec with
     |Some (arg_specs, ret_prop) ->
       assert (List.length arg_specs = List.length arg_sorts);
@@ -184,7 +264,7 @@ and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qho
           arg_specs arg_sorts
       in
       (* 引数列の候補 *)
-      let arg_seq = gen_args ep penv abduction_candidate arg_specs_with_sort (depth-1) in
+      let arg_seq = gen_args ctx ep penv abduction_candidate arg_specs_with_sort (depth-1) in
       Seq.map
         arg_seq
         ~f:(fun ((args:(Id.t * (Program.e * upProp)) list), abduction_candidate)  ->
@@ -199,22 +279,23 @@ and gen_app_term:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qho
   )
 
   
-and gen_app_terms ep penv abduction_candidates spec depth (func_heads:(Id.t * Hfl.funcSort) list) =
-  List.map (gen_app_term ep penv abduction_candidates spec depth) func_heads
+and gen_app_terms ctx ep penv abduction_candidates spec depth (func_heads:(Id.t * Hfl.funcSort) list) =
+  List.map (gen_app_term ctx ep penv abduction_candidates spec depth) func_heads
   |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
   
-and f ep penv abduction_candidate sort spec depth =
+and f ctx ep penv abduction_candidate sort spec depth =
   let HeadCandidates.{scalar = scalar_heads; func = func_heads}
     =  PathEnv.find_heads (Hfl.return_sort sort) penv
   in
-  let var_seq = gen_vars ep penv abduction_candidate scalar_heads spec in
+  let var_seq = gen_vars ctx ep penv abduction_candidate scalar_heads spec in
   if depth <= 0 then
     var_seq
   else
-    let app_term_seq = gen_app_terms ep penv abduction_candidate spec depth func_heads in
+    let app_term_seq = gen_app_terms ctx ep penv abduction_candidate spec depth func_heads in
     Seq.append var_seq app_term_seq
 
   
     
-
+let f  ep penv abduction_candidate sort spec depth =
+  f (Context.empty) ep penv abduction_candidate sort spec depth

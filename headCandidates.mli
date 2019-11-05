@@ -3,4 +3,5 @@ type t =  {scalar:(Id.t * Hfl.baseSort) list
 
 val empty:t
 
+val to_string: t -> string
 val add: Id.t -> Hfl.sort -> t -> t

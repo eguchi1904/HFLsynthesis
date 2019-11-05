@@ -5,7 +5,19 @@ type t = {condition:Hfl.clause list
 let empty = {condition = []
             ;sortEnv = MlEnv.empty}
 
-          
+
+let to_string t =
+  let cond_str =
+    List.map (Hfl.clause_to_string) t.condition
+    |> String.concat "; "
+  in
+  "bindings:"
+  ^"\n"^(MlEnv.to_string t.sortEnv)
+  ^"\npath conditions:"
+  ^"\n"^cond_str
+    
+
+    
 let add_condition c env =
   {condition = c::env.condition
   ;sortEnv  =env.sortEnv}

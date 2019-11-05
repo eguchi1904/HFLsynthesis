@@ -121,9 +121,9 @@ let rec to_string_abs (`Abs (args, body))=
                          (fun (id, sort) -> (Id.to_string_readable id)^":"^(sort2string sort))
                     |> String.concat ","
      in
-     "fun "^args_str^" ->"^(to_string body)      
+     "fun "^args_str^" ->"^(clause_to_string body)      
     
-and to_string = function
+and clause_to_string = function
   | `Base base -> "("^(BaseLogic.p2string base)^")"
   | `Abs _ as abs -> to_string_abs abs
   | `App {head = head; params = params; args = args} ->
@@ -132,7 +132,7 @@ and to_string = function
                       |> String.concat " "
      in
      let args_str =  args
-                      |> List.map (fun p -> "("^(to_string p)^")")
+                      |> List.map (fun p -> "("^(clause_to_string p)^")")
                      |> String.concat " "
      in
      String.concat " " [(Id.to_string_readable head); params_str; args_str]
@@ -142,11 +142,11 @@ and to_string = function
                       |> List.map (fun p -> "("^(to_string_abs p)^")")
                       |> String.concat " "
      in
-     let arg_str = to_string arg in
+     let arg_str = clause_to_string arg in
      String.concat " " [(Id.to_string_readable name); params_str; arg_str]     
 
-  | `And (c1, c2) -> (to_string c1)^"&&&"^(to_string c2)
-  | `Or (c1, c2) -> (to_string c1)^"|||"^(to_string c2)                   
+  | `And (c1, c2) -> (clause_to_string c1)^"&&&"^(clause_to_string c2)
+  | `Or (c1, c2) -> (clause_to_string c1)^"|||"^(clause_to_string c2)                   
      
                     
               
@@ -325,6 +325,19 @@ type qhorn
     | `Forall of Id.t * baseSort * qhorn
     ]
 
+let rec qhorn_to_string (qhorn:qhorn) =
+  match qhorn with
+  | `Horn (pre_cs, c) ->
+     let pre_cs_str = List.map (clause_to_string) pre_cs
+                      |> String.concat "; "
+     in
+     "["^pre_cs_str^"]==>"^(clause_to_string c)
+  | `Exists (x, sort, qhorn) ->
+     "∃"^(Id.to_string_readable x)^":"^(sort2string (sort:>sort))^"."^(qhorn_to_string qhorn)
+  | `Forall (x, sort, qhorn) ->
+     "∀"^(Id.to_string_readable x)^":"^(sort2string (sort:>sort))^"."^(qhorn_to_string qhorn)    
+  
+
 (* type existsHorn = [`Exists of Id.t * baseSort * existsHorn] *)
 
 let rec replace_qhorn x y (qhorn:qhorn) :qhorn=
@@ -375,6 +388,23 @@ type fhorn
     ;args:(Id.t * sort) list
     ;body: qhorn}
 
+let fhorn_to_string {params = params; args = args; body = body } =
+  let params_str =
+    params
+    |> List.map
+         (fun (p, sort) -> (Id.to_string_readable p)^"[@param]:"^(sort2string (sort:>sort)))
+    |> String.concat " "
+  in
+  let args_str = 
+    args
+    |> List.map
+         (fun (p, sort) -> (Id.to_string_readable p)^":"^(sort2string (sort:>sort)))
+    |> String.concat " "
+  in
+  "fun "^params_str^" "^args_str^" ->"
+  ^"\n        "^(qhorn_to_string body)
+    
+
 let replace_fhorn x y {params = params;
                         args = args;
                         body = qhorn} =
@@ -423,6 +453,8 @@ module Equations:
 sig
   type t (* = private (fixOp option * fhorn) option array *)
 
+  val to_string: t -> string
+
   val make: unit -> t
 
   val add: t -> Id.t -> fixOp option -> fhorn -> unit
@@ -446,6 +478,21 @@ end
   type t = (fixOp option * fhorn) option array
 
   let make () = Array.make 1000 None
+
+  let to_string t =
+    Array.fold_left
+      (fun (i,acc) opt->
+        match opt with
+        |None -> (i+1, acc)
+        |Some (_, fhorn) ->
+          let id = (Id.to_string_readable (Id.of_int i)) in
+          (i+1, acc^"\nlet "^id^" ="^(fhorn_to_string fhorn)))
+      (0,"")    
+      t
+
+  |> snd
+        
+        
 
   (* f x1 x2 r = [\phi(x1); \phi(x1,x2)] => \phi(x1, x2, r) という形になっていて欲しいな
      とりあえず暗黙の前提として使ってしまう。

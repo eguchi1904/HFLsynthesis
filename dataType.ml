@@ -102,11 +102,18 @@ module Env = struct
     
   let add_measure_case
         t
+        measure_name
         (`DataS data)
+        return_sort
         (case:formulaCase)
     =
-    let e' = BaseLogic.Eq (BaseLogic.Var (BaseLogic.DataS (data, []), Id.valueVar_id),
-                          case.body)
+    let return_sort = Hfl.to_baseLogic_sort return_sort in
+    let e' =
+      let open BaseLogic in
+      Eq (UF (return_sort,
+              measure_name,
+              [Var (DataS (data,[]), Id.valueVar_id)]),
+          case.body)
     in
     (* constructor用に変換 *)
     let case = {constructor = case.constructor;
@@ -131,7 +138,9 @@ module Env = struct
                (measure::measure_list)
     in
     (* t.constructors の更新 *)
-    List.iter (add_measure_case t measure.inputSort) measure.matchCases
+    List.iter
+      (add_measure_case t measure.name measure.inputSort measure.returnSort)
+      measure.matchCases
     
   let add_definition t (def:definition) =
     (* t.datatypesの更新 *)
@@ -140,8 +149,12 @@ module Env = struct
     (* t.dataMeasuresTblの初期化 *)
     let () = Hashtbl.add t.dataMeasuresTbl (Id.to_int data) [] in
     (* コンストラクタのmeasure_constraintの初期化 *)
-    let top_cases = List.map (top_forumulaCase) def.constructors in
-    List.iter (add_measure_case t (`DataS data)) top_cases
+    List.iter
+      (fun (cons:constructor) ->
+        let top_case = top_forumulaCase cons in
+        Hashtbl.add t.constructors (Id.to_int cons.name) top_case)
+    def.constructors
+
 
 
   let add_refine t (refine:refine) =

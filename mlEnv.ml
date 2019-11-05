@@ -21,6 +21,24 @@ type imap = HeadCandidates.t SortM.t
           
 type t = smap * imap (* bi directional *)
 
+let smap_to_string smap =
+  M.fold
+    (fun x sort acc ->
+      (Id.to_string_readable x)^":"^(Hfl.sort2string sort)^"; "^acc)
+    smap
+    ""
+
+let imap_to_string imap =
+  SortM.fold
+    (fun sort head_candi acc ->
+      (Hfl.sort2string (sort:>Hfl.sort))^" -> "^(HeadCandidates.to_string head_candi)
+       ^"\n"^acc)
+    imap
+  ""
+
+let to_string ((smap, imap):t) =
+  (smap_to_string smap)^"\n"^(imap_to_string imap)
+
 let empty = (M.empty, SortM.empty)
           
 

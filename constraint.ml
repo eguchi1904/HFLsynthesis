@@ -1,6 +1,20 @@
+open Printf
 
+type t = Hfl.Equations.t * Hfl.clause list * Hfl.qhorn list
 
-type t = Hfl.Equations.t * Hfl.clause list * Hfl.qhorn list                 
+let to_string ((_, shared_premise, qhorn_list):t) =
+  let shared_premise_str =
+    List.map Hfl.clause_to_string shared_premise
+    |> String.concat " ;"
+  in
+  let indent = String.make (4+(String.length shared_premise_str)) ' ' in
+  let qhorn_list_str =
+    List.map Hfl.qhorn_to_string qhorn_list
+    |> String.concat (indent^"\n")
+  in
+  "["^shared_premise_str^"] * ["^qhorn_list_str^"    \n]"
+  
+  
        
 let rec separate_forall_rec (qhorn:Hfl.qhorn) acc_binds =
   match qhorn with
@@ -34,10 +48,20 @@ let make
   ep, shared_premise, qhorn_list
 
 
-let clause_to_z3_expr: Hfl.clause -> Z3.Expr.expr = function
-  | `Base base_e ->  fst (BaseLogic.to_z3_expr base_e)
-  | _ -> invalid_arg " not implement yet"
+let rec clause_to_base (c:Hfl.clause) =
+  match c with
+  | `Base base_e -> base_e
+  | `Or (c1, c2) -> BaseLogic.Or ((clause_to_base c1), (clause_to_base c2))
+  | `And (c1, c2) -> BaseLogic.And ((clause_to_base c1), (clause_to_base c2))
+  | _ -> assert false
+                  
   
+let rec clause_to_z3_expr: Hfl.clause -> Z3.Expr.expr =
+  (fun c ->
+    let base = clause_to_base c  in
+    (* let () = Printf.eprintf "clause->z3:%s\n" (BaseLogic.p2string_with_sort base) in *)
+    fst (BaseLogic.to_z3_expr base)
+  )
 
 let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
   match qhorn with

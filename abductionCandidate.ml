@@ -6,6 +6,15 @@ type t = {now: BaseLogic.t list
 
 
 let empty = {now = []; candidates = []}
+
+let to_string {now = cond; candidates = future} =
+  let cond_str = List.map BaseLogic.p2string cond
+                 |> String.concat ";"
+  in
+  let future_str = List.map BaseLogic.p2string future
+                 |> String.concat ";"
+  in
+  "("^"["^cond_str^"]"^" (< ["^future_str^"] )"
           
 let get t = t.now
 

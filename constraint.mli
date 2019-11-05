@@ -1,6 +1,6 @@
 type t
 
-
+val to_string:t -> string
 val make:
   Hfl.Equations.t ->
   PathEnv.t ->
