@@ -114,20 +114,9 @@ let rec mk_arg_spec (arg:(Id.t * Hfl.sort) list)
   |[] -> invalid_arg "mk_arg_spec"
   |[(id, sort)] ->
     let open BaseLogic in
-    let fresh_var = Id.genid "_v" in
-    let share_premise' =
-      List.map
-        (swap_value_var id fresh_var
-        )
-        shared_premise in
-    let qhorn_list' =
-      List.map
-        (swap_value_var_qhorn id fresh_var)
-        qhorn_list
-    in
     [id,List.map
-         (Hfl.add_premise_qhorn share_premise')
-         qhorn_list']
+         (Hfl.add_premise_qhorn shared_premise)
+         qhorn_list]
   |(id,sort)::lest ->
     (id, [`Horn ([], top)])
     ::(mk_arg_spec lest shared_premise qhorn_list)

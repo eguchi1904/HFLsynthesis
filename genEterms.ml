@@ -118,7 +118,7 @@ let split_arg_spec_return_prop ep penv head spec =
                                ~prop:(`Exists ([], [head_spec.retSpec]))
                                ~spec:spec
     in
-    let free_cons, splited_arg_specs =
+    let free_cons, splited_arg_specs = (* abduction的なことをする *)
       Constraint.split head_spec.args cons
     in
     (* pramsのpredicateを具体化して、代入する *)
@@ -140,6 +140,11 @@ let split_arg_spec_return_prop ep penv head spec =
         (fun (x, clause) (y, splited_spec) ->
           assert(x = y);
           let clause' = Hfl.replace x Id.valueVar_id clause in
+          let v' = Id.genid (Id.to_string_readable head) in 
+          let splited_spec =    (* phi(x,v) -> phi(v, v') *)
+            List.map (Hfl.replace_qhorn Id.valueVar_id v') splited_spec
+            |> List.map (Hfl.replace_qhorn y Id.valueVar_id)
+          in
           let qhorn:Hfl.qhorn = `Horn ([], clause') in
           (x, qhorn::splited_spec))
         head_spec.argSpecs
@@ -239,7 +244,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
         term_for_x
         ~f:(fun (ex, (`Exists (binds, clauses) as ex_prop), abduction_candidate) ->
           let ex_conds =
-            List.map (Hfl.replace x Id.valueVar_id) clauses in
+            List.map (Hfl.replace Id.valueVar_id x) clauses in
           let penv' = PathEnv.add_condition_list ex_conds penv in
           let ctx = Context.push_arg ex ctx in
           gen_args ctx ep penv' abduction_candidate lest_specs depth

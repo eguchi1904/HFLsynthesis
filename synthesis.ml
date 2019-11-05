@@ -97,7 +97,7 @@ let generator data_env qualifiers e_depth =
          |Some b -> b
          |None ->
            (* enumeration of match or use othere template  *)           
-           invalid_arg "gen_b_term: not impl yet"
+           invalid_arg "gen_b_term: not impl yet:(match enumeration)"
        )
 
      and gen_branch_by_abduction = 
@@ -170,14 +170,104 @@ let generator data_env qualifiers e_depth =
          penv_list
 
 
-     let mk_rec_spec penv spec = spec (* ひとまず、いや一瞬で必要にあるな。全ての入力にlet f x　= f xが帰るので*)
+     let inductive_arg (x, sort) clause =
+       let open BaseLogic in
+       match sort with
+       | `IntS ->
+          (match clause with
+           | `Base (Le (Int lower, (Var (_,x')))) | `Base (Lt (Int lower, (Var (_,x'))))
+             | `Base (Ge ((Var (_,x')), Int lower)) | `Base (Gt ((Var (_,x')), Int lower))
+           when x = x'
+             ->
+              let new_x = Id.genid_from_id x in
+              let clause' = `And (`Base (Lt (Var(IntS, new_x), Var(IntS, x))),
+                                  Hfl.replace x new_x clause)
+              in
+              Some (new_x, clause')
+           |_ -> None)
+
+       | `DataS data ->
+          (match DataType.Env.termination_measure data_env (`DataS data) with
+          |[] -> None
+          |measure::_ ->
+            let tm = measure.name in
+            let sort = DataS (data,[]) in
+            let new_x = Id.genid_from_id x in
+            let clause' = `And ((`Base (Lt (UF(IntS, tm, [Var(sort,new_x)]),
+                                           UF(IntS, tm, [Var(sort, x)])))
+                                ),
+                                Hfl.replace x new_x clause)
+                                
+            in
+            Some (new_x, clause'))
+       | _ -> None
+          
+       
+     let rec mk_rec_spec_qhorn  args qhorn =
+       match qhorn with
+       | `Horn (pre_cs, c) ->
+          assert (List.length pre_cs = List.length args);
+          let args_cs' =
+            List.map2
+              (fun (x,sort) clause ->
+                match inductive_arg (x,sort) clause with
+                |Some (x', clause') -> (x', clause')
+                |None ->
+                  let new_x = Id.genid_from_id x in
+                  let clause' = Hfl.replace x new_x clause in
+                  (new_x, clause'))
+              args
+              pre_cs
+          in
+          let c' =
+            List.fold_left2
+              (fun acc (x,_) (new_x, _) ->
+                Hfl.replace x new_x acc)
+              c
+              args
+            args_cs'
+          in
+          let pre_cs' = List.map snd args_cs' in
+          let args' = List.map2
+                        (fun (new_x, _) (_, sort) -> (new_x, sort))
+                        args_cs'
+                    args
+          in
+          `Horn (pre_cs', c'), args'
+
+       | `Exists (x, sort, qhorn) ->
+          let qhorn', args' = mk_rec_spec_qhorn args qhorn in
+          `Exists (x, sort, qhorn'), args'
+
+       | `Forall (x, sort, qhorn) ->
+          let qhorn', args' = mk_rec_spec_qhorn args qhorn in
+          `Forall (x, sort, qhorn'), args'          
+
+     let mk_rec_spec Hfl.{params = params; args = args; body = qhorn} =
+       let qhorn', args' = mk_rec_spec_qhorn args qhorn in
+       let params' =
+         List.map (fun (p,sort) -> (Id.genid_from_id p, sort)) params
+       in
+       let qhorn' =
+         List.fold_left2
+           (fun acc (p,_) (new_p,_) ->
+             Hfl.replace_qhorn p new_p acc)
+           qhorn'
+           params
+           params'
+       in
+       Hfl.{params = params'; args = args'; body = qhorn' }
+          
+
        
      let f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t = 
        (fun ep penv name sort ~spec ->
          let Hfl.{params = params; args = args; body = qhorn} = spec in
-         let rec_spec = mk_rec_spec penv spec in
-         let () = Hfl.Equations.add ep name None rec_spec in
-         let penv = PathEnv.add_bind_list args  penv in
+         let rec_spec = mk_rec_spec spec in (* 再起するときの仕様 *)
+         let rec_name = Id.genid_const (Id.to_string_readable name) in
+         let () = Hfl.Equations.add ep rec_name None rec_spec in
+         let penv = PathEnv.add_bind rec_name sort penv in (* 再起用に追加 *)
+         let penv = PathEnv.add_bind_list args penv in
          let abduction_candidate =
            AbductionCandidate.initialize
              penv qualifiers
