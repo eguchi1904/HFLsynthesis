@@ -39,6 +39,7 @@ let rec sort2z3 (ctx:context) (smap:sort_map) (s:Formula.sort) =
        Not_found ->
        (* (Printf.printf "let's make z3 sort! %s\n" (Formula.sort2string s)); *)
        let new_z3_sort = Sort.mk_uninterpreted_s ctx (gen_string i) in
+       let new_z3_sort = Integer.mk_sort ctx in (* ここ後でちゃんとしよう *)
        (Hashtbl.add smap (Formula.DataS (i, [dummy])) new_z3_sort);
        new_z3_sort)
   |Formula.SetS s1 ->

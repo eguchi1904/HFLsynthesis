@@ -4,6 +4,7 @@ type t
 val empty:t
 
 val to_string: t -> string
+  
 val get: t -> BaseLogic.t list
   
 (* tを1段階強化したものの候補を返す *)

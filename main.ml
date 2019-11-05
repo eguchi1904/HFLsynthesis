@@ -11,7 +11,8 @@ let application_max_depth = 3
 let syntheis synthesizer ep (var, (pathenv, sort)) =
   match Hfl.Equations.find ep var with
   |Some (None, fhorn) ->
-    synthesizer ep pathenv var sort ~spec:fhorn
+    let program = synthesizer ep pathenv var sort ~spec:fhorn in
+    Format.printf "%s\n\n.@" (Program.to_string program)
   |Some _ -> assert false
   |None -> assert false
 
@@ -32,6 +33,6 @@ let _ =
   let module Synthesizer =
     (val (Synthesis.generator data_env qualifiers application_max_depth))
   in
-  let programs = List.map (syntheis Synthesizer.f ep) goals in
+  let () = List.iter (syntheis Synthesizer.f ep) goals in
   print_string "hello"
 
