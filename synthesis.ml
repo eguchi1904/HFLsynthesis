@@ -1,6 +1,6 @@
 module Seq = Base.Sequence
 
-module type SYNTHESIS = sig
+module type SYNTHESIZER = sig
   
   val  f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t
      
@@ -195,5 +195,5 @@ let generator data_env qualifiers e_depth =
 
 
    end
-          :SYNTHESIS)
+          :SYNTHESIZER)
          

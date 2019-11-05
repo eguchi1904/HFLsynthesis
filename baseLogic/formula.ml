@@ -137,12 +137,13 @@ type qformula =
   |QExist of (Id.t* sort) list * t list
            
 
-let rec p2string = function
+let rec p2string e =
+  match e with
   |Bool b -> if b = true then "True" else "False"
   |Int i -> string_of_int i
   |Set (_,ts) ->let ts_string = String.concat ", " (List.map p2string ts) in
                 Printf.sprintf "[%s]" ts_string
-  |Var (_,id) ->Printf.sprintf "%s " (Id.to_string id)
+  |Var (_,id) ->Printf.sprintf "%s " (Id.to_string_readable id)
  |Unknown (senv, _, sita, id)->
     let sita_list = M.bindings sita in
     let sita_str_list = List.map

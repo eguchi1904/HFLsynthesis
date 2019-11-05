@@ -35,6 +35,16 @@ let rec extract_predicate_def pmap t =
 
   |[] -> pmap
 
+let rec extract_qualifiers (t:ParseSyntax.t) =
+  match t with
+  |DataDef _ :: other |MeasureDef _ :: other |RefinePredicateDef _ :: other
+   |Goal _ :: other |PredicateDef _ :: other |VarSpecDec _ ::other ->
+    extract_qualifiers other
+   
+  | QualifierDef qualifiers :: other->
+     qualifiers @(extract_qualifiers other)
+
+  |[] -> []
 
 
     
@@ -46,10 +56,11 @@ let f filepath =
 
   in
   let pmap = extract_predicate_def M.empty syntax in
+  let qualifiers = extract_qualifiers syntax in
   let data_env = MkDataTypeEnv.f pmap sort_env syntax in
   let ep = MkHflEquation.f data_env pmap syntax in
   let goals = MkSynthesisGoals.f data_env sort_env syntax in
-  data_env, ep, goals
+  data_env, ep, qualifiers, goals
   
   
   

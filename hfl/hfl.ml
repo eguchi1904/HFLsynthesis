@@ -115,7 +115,40 @@ let rec fv = function
        (fv c1)
        (fv c2)
 
-              
+let rec to_string_abs (`Abs (args, body))= 
+     let args_str = args
+                    |> List.map
+                         (fun (id, sort) -> (Id.to_string_readable id)^":"^(sort2string sort))
+                    |> String.concat ","
+     in
+     "fun "^args_str^" ->"^(to_string body)      
+    
+and to_string = function
+  | `Base base -> "("^(BaseLogic.p2string base)^")"
+  | `Abs _ as abs -> to_string_abs abs
+  | `App {head = head; params = params; args = args} ->
+     let params_str = params
+                      |> List.map (fun p -> "("^(to_string_abs p)^")")
+                      |> String.concat " "
+     in
+     let args_str =  args
+                      |> List.map (fun p -> "("^(to_string p)^")")
+                     |> String.concat " "
+     in
+     String.concat " " [(Id.to_string_readable head); params_str; args_str]
+
+  | `RData (name, params, arg) ->
+     let params_str = params
+                      |> List.map (fun p -> "("^(to_string_abs p)^")")
+                      |> String.concat " "
+     in
+     let arg_str = to_string arg in
+     String.concat " " [(Id.to_string_readable name); params_str; arg_str]     
+
+  | `And (c1, c2) -> (to_string c1)^"&&&"^(to_string c2)
+  | `Or (c1, c2) -> (to_string c1)^"|||"^(to_string c2)                   
+     
+                    
               
 let rec separate_by_and clause =
   match clause with
@@ -440,17 +473,19 @@ end
       |{params = params;
         args = args;
         body= `Horn (pre, c)} ->
-      assert ((List.length args) = (List.length pre));
-      let arg_specs = List.map2
-                        (fun (id,_) clause -> id, clause)
-                        args
-                        pre
-      in
-      Some {fixOp = None
-           ;params = params
-           ;args = args
-           ;argSpecs  = arg_specs
-           ;retSpec = c}
+        (* Printf.printf "%s !!\n" (Id.to_string_readable id); *)
+        assert ((List.length args) = (List.length pre));
+        
+        let arg_specs = List.map2
+                          (fun (id,_) clause -> id, clause)
+                          args
+                          pre
+        in
+        Some {fixOp = None
+             ;params = params
+             ;args = args
+             ;argSpecs  = arg_specs
+             ;retSpec = c}
       |_ -> invalid_arg "hfl.extract_fun_spec: not implement yet"
       )
         

@@ -38,6 +38,7 @@ let split_arg_spec_return_prop ep penv head spec =
   (* extract_fun_specが、argの変数名のfreshnessを保証 *)
   match Hfl.Equations.extract_fun_spec ep head with
   |Some head_spec ->
+    (* ここをabduction的な形で綺麗にまとめれば良いな。それだけか。まあ今綺麗にせんでも良いか。 *)
     let cons = Constraint.make ep penv
                                ~prop:(`Exists ([], [head_spec.retSpec]))
                                ~spec:spec

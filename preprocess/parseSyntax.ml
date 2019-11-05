@@ -207,9 +207,10 @@ let mk_specification_fhorn var_name pmap (predicate_def:predicateDef) :Hfl.fhorn
            body = `Horn (arg_cs, c2)}
     |None, c2 ->
       let c2 = to_hfl_clause pmap c2 in
+      let pre = List.map (fun _-> `Base (BaseLogic.Bool true)) args in      
       Hfl.{params = params;
            args = args;
-           body = `Horn ([], c2)}
+           body = `Horn (pre, c2)}
   in
   fhorn'
   |> Hfl.replace_fhorn (fst ret_var) Id.valueVar_id
@@ -227,7 +228,7 @@ let extract_data_defs (t:t) =
     t
     []
 
-let extracet_cons_env (t:t) = 
+let extract_cons_env (t:t) = 
     List.fold_right
     (fun elm acc ->
       match elm with

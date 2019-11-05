@@ -184,9 +184,10 @@ module Env = struct
                  (Cons ((DataS (data, [])),cons, args_es)))
             )
     in
+    let pre = List.map (fun _-> `Base (BaseLogic.Bool true)) args in
     Hfl.{params = [];
          args = (args:> (Id.t * Hfl.sort) list);
-         body = `Horn ([], `And (v_eq_cons, `Base e))}
+         body = `Horn (pre, `And (v_eq_cons, `Base e))}
     
 
            
