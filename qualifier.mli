@@ -1,5 +1,7 @@
 type t
 
+val to_string: t -> string
+  
 val make:(Id.t * Hfl.baseSort) list ->  BaseLogic.t -> t
 
 val reveal: t -> (Id.t * Hfl.baseSort) list * BaseLogic.t

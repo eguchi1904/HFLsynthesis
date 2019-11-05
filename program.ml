@@ -23,7 +23,7 @@ let rec to_string_e {head = head; args = args} =
            if arg_args = [] then
              (Id.to_string_readable arg_head)
            else
-             to_string_e arg)
+             "("^(to_string_e arg)^")")
 
     |> String.concat " "
   in
@@ -37,9 +37,9 @@ let rec to_string_b d b =
   let indent = String.make d ' ' in
   indent^(match b with
           |PIf (cond, b1, b2) ->
-            "if "^(to_string_cond cond)^"then\n"
+            "if "^(to_string_cond cond)^" then\n"
             ^(to_string_b (d+2) b1)
-            ^"\nelse\n"
+            ^"\n"^indent^"else\n"
             ^(to_string_b (d+2) b2)
           |PMatch (e, cases) ->
             let cases_str =
