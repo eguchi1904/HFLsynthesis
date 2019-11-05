@@ -189,7 +189,8 @@ measureDef:
 | LET attribute(MEASURE) termination = boption(attribute(TERMINATION)) option(REC)
     measure = MEASUREID COLON arg_data = ID ALLOW ret_sort = basesort
      EQUAL FUNCTION cases = nonempty_list(measureCase)
-  { {name = measure;
+  {
+  {name = measure;
      termination = termination;
      inputSort = `DataS arg_data;
      returnSort = ret_sort;

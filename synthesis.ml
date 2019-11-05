@@ -17,11 +17,13 @@ let generator data_env qualifiers e_depth =
                                 sclarConstructor: Id.t;
                                }
                              
-     let  inspect_condition_is_equal_to_match cond_list =
+     let inspect_condition_is_equal_to_match cond_list =
+       
        let open BaseLogic in
        match cond_list with
        |[cond] ->
          begin
+           (Printf.printf "%s is match scr??\n" (BaseLogic.p2string cond));
            match cond with
            |Eq ((Var (bsort, x)),
                   Cons (bsort', scalar_cons, []))
@@ -37,7 +39,9 @@ let generator data_env qualifiers e_depth =
                                   sclarConstructor = scalar_cons
                                  }
               |_ -> assert false)
-           |_ -> None
+           |_ ->
+             (Printf.printf "%s isnt ??\n" (BaseLogic.p2string cond));
+             None
          end
        | _ -> None
 
@@ -56,6 +60,15 @@ let generator data_env qualifiers e_depth =
          DataType.Env.measure_constraint_of_constructor data_env (`DataS data) cons 
        in
        assert (cons' = cons);
+       let measure_constraint =
+         measure_constraint
+         |> BaseLogic.replace Id.valueVar_id z
+         |> List.fold_right2
+              (fun (arg,_) (new_arg,_) e-> BaseLogic.replace arg new_arg e)
+              args'
+              new_args
+       in
+       let penv = PathEnv.add_condition (`Base measure_constraint) penv in
        match scrutinee_prop with
        |None -> penv
        |Some (`Exists (bind, scrutinee_prop)) ->
@@ -66,7 +79,7 @@ let generator data_env qualifiers e_depth =
              scrutinee_prop
          in
          let penv = PathEnv.add_condition_list
-                      ((`Base measure_constraint)::arg_constraint)
+                      arg_constraint
                       penv
          in
          penv
@@ -131,7 +144,7 @@ let generator data_env qualifiers e_depth =
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
                  let abduction_candidate =
-                   AbductionCandidate.initialize penv' qualifiers ~new_vars:[] abduction_candidate
+                   AbductionCandidate.initialize data_env penv' qualifiers ~new_vars:[] abduction_candidate
                  in
                  let b_else =  gen_b_term ep penv' abduction_candidate sort ~spec in
                  let open Program in
@@ -161,7 +174,7 @@ let generator data_env qualifiers e_depth =
          (fun DataType.{name = cons; args = arg_list} penv ->
            let abduction_candidate =
              AbductionCandidate.initialize
-               penv qualifiers ~new_vars:(List.map fst arg_list) abduction_candidate
+               data_env penv qualifiers ~new_vars:(List.map fst arg_list) abduction_candidate
            in
            Program.{constructor = cons;
                     argNames = arg_list;
@@ -188,7 +201,8 @@ let generator data_env qualifiers e_depth =
 
        | `DataS data ->
           (match DataType.Env.termination_measure data_env (`DataS data) with
-          |[] -> None
+           |[] ->
+             None
           |measure::_ ->
             let tm = measure.name in
             let sort = DataS (data,[]) in
@@ -257,8 +271,12 @@ let generator data_env qualifiers e_depth =
            params'
        in
        Hfl.{params = params'; args = args'; body = qhorn' }
-          
 
+
+     let logcha = open_out "setting.log"
+           
+     let log_setting ep =
+       Printf.fprintf logcha "hfl equtaions:\n%s" (Hfl.Equations.to_string ep)
        
      let f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t = 
        (fun ep penv name sort ~spec ->
@@ -266,11 +284,12 @@ let generator data_env qualifiers e_depth =
          let rec_spec = mk_rec_spec spec in (* 再起するときの仕様 *)
          let rec_name = Id.genid_const (Id.to_string_readable name) in
          let () = Hfl.Equations.add ep rec_name None rec_spec in
+         let () = log_setting ep in
          let penv = PathEnv.add_bind rec_name sort penv in (* 再起用に追加 *)
          let penv = PathEnv.add_bind_list args penv in
          let abduction_candidate =
            AbductionCandidate.initialize
-             penv qualifiers
+             data_env penv qualifiers
              ~new_vars:(List.map fst args)
            AbductionCandidate.empty
          in

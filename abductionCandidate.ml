@@ -47,13 +47,13 @@ let filter_unsat_candidate penv candiates =
       candiates
 
 
-let initialize penv qualifiers ~new_vars t =
+let initialize data_env penv qualifiers ~new_vars t =
   let candidates' =
     match new_vars with
     |[] -> filter_unsat_candidate penv (t.now@t.candidates)
     | _::_ ->
        let new_candidates =
-         List.map (Qualifier.gen_formulas penv ~must_include_vars:(S.of_list new_vars)) qualifiers
+         List.map (Qualifier.gen_formulas data_env penv ~must_include_vars:(S.of_list new_vars)) qualifiers
          |> List.concat
        in
        filter_unsat_candidate penv (new_candidates@t.now@t.candidates)

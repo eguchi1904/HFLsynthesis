@@ -53,7 +53,7 @@ let rec enumerate_possible_args
     
 
 
-let gen_formulas penv ~must_include_vars ((args, body):t) =
+let gen_formulas data_env penv ~must_include_vars ((args, body):t) =
   let possible_arg_vars =
     enumerate_possible_args
       penv
@@ -74,7 +74,11 @@ let gen_formulas penv ~must_include_vars ((args, body):t) =
       let subst = 
         List.fold_left2
           (fun acc real (formal, sort) ->
-            M.add formal (Var ((Hfl.to_baseLogic_sort sort), real)) acc)
+            if DataType.Env.is_constructor data_env real then
+              M.add formal (Cons ((Hfl.to_baseLogic_sort sort), real, [])) acc
+            else
+              M.add formal (Var ((Hfl.to_baseLogic_sort sort), real)) acc
+          )
           M.empty
           real_args
           args

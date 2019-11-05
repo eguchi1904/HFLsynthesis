@@ -59,7 +59,7 @@ end = struct
   let log_trial ctx abduction_candi path_env  var cons  =
     Printf.fprintf
       log_cha
-      "TRIAL:\n %s \n?? <- %s\nabduction candidate:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n"
+      "TRIAL:\n %s \n?? <- %s\nabduction candidate:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n@."
       (Context.to_string ctx)
       (Id.to_string_readable var)
       (AbductionCandidate.to_string abduction_candi)
@@ -70,11 +70,11 @@ end = struct
     if valid then
       Printf.fprintf
         log_cha
-        "\nTRIAL SUCSESS!\n\n\n"
+        "\nTRIAL SUCSESS!\n\n\n@."
     else
       Printf.fprintf
         log_cha
-        "\n\nTRIAL fail\n\n\n"      
+        "\n\nTRIAL fail\n\n\n@."      
 end  
 
 let choose_head_candidates ep penv sort spec =

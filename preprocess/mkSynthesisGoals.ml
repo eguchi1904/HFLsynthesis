@@ -38,7 +38,21 @@ let rec g path_env goal_map = function
     )
 
   |[] -> []
-    
+
+
+let measure_conditioin_of_sclar_constructor data_env (`DataS data) cons_name =
+  let measure_constraint =
+    DataType.Env.measure_constraint_of_constructor
+      data_env
+      (`DataS data)
+      cons_name
+  in
+  measure_constraint.body
+  |>
+    BaseLogic.substitution
+      (M.singleton
+         Id.valueVar_id
+         (BaseLogic.Cons (BaseLogic.DataS (data,[]), cons_name, [])))
    
       
 let f data_env sort_env t =
@@ -51,6 +65,13 @@ let f data_env sort_env t =
           List.fold_left
           (fun acc cons_name ->
             match M.find_opt cons_name sort_env with
+            |Some `DataS data -> (* sclarなあたいはmeasure条件をplus *)
+              let measure_cond  =
+                measure_conditioin_of_sclar_constructor data_env (`DataS data) cons_name
+              in
+              acc
+              |> PathEnv.add_bind cons_name (`DataS data)
+              |> PathEnv.add_condition (`Base measure_cond)
             |Some cons_sort ->
               PathEnv.add_bind cons_name cons_sort acc
             |None -> assert false)

@@ -96,7 +96,10 @@ module Env = struct
     Hashtbl.fold
       (fun i definition acc -> f (Id.of_int i) definition acc)
       t.datatypes
-    seed
+      seed
+
+  let is_constructor t id =
+    Hashtbl.mem t.constructors (Id.to_int id)
 
 
     
@@ -177,7 +180,7 @@ module Env = struct
   let termination_measure t (`DataS data) =
     match Hashtbl.find_opt t.dataMeasuresTbl (Id.to_int data) with
     |Some measure_list ->
-      List.filter (fun measure -> measure.termination) measure_list
+      List.filter (fun (measure:measure) -> measure.termination) measure_list
     |None -> invalid_arg ("data "^(Id.to_string_readable data)^" not defined")
 
   (* [cons] x xs _v = _v = cons x xs && len _v = len xs + 1 *)
