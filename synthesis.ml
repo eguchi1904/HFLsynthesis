@@ -79,7 +79,7 @@ let generator data_env qualifiers e_max_size =
                   |> PathEnv.add_condition (`Base equality_constraint) 
        in
        match scrutinee_prop with
-       |None -> penv
+       |None -> (penv, new_args)
        |Some (`Exists (bind, scrutinee_prop)) ->
          let arg_constraint =
            DataType.Env.unfold_clauses_diff
@@ -91,7 +91,7 @@ let generator data_env qualifiers e_max_size =
                       arg_constraint
                       penv
          in
-         penv
+         (penv, new_args)
 
          
 
@@ -174,22 +174,22 @@ let generator data_env qualifiers e_max_size =
          |None -> penv
          |Some (`Exists (bind, cs)) -> PathEnv.add_condition_list cs penv
        in
-       let penv_list =
+       let penv_args_list =
          List.map
            (add_penv_case_specific_info penv' z scrutinee_prop (`Data data))
            cons_list
        in
        List.map2
-         (fun DataType.{name = cons; args = arg_list} penv ->
+         (fun DataType.{name = cons; args = _} (penv, new_arg) ->
            let abduction_candidate =
              AbductionCandidate.initialize
-               data_env penv qualifiers ~new_vars:(List.map fst arg_list) abduction_candidate
+               data_env penv qualifiers ~new_vars:(List.map fst new_arg) abduction_candidate
            in
            Program.{constructor = cons;
-                    argNames = arg_list;
+                    argNames =new_arg;
                     body = gen_b_term ep penv abduction_candidate sort ~spec})
          cons_list
-         penv_list
+         penv_args_list
 
 
      let inductive_arg (x, sort) clause =
@@ -230,17 +230,19 @@ let generator data_env qualifiers e_max_size =
        match qhorn with
        | `Horn (pre_cs, c) ->
           assert (List.length pre_cs = List.length args);
-          let args_cs' =
-            List.map2
-              (fun (x,sort) clause ->
+          let inductive_arg_exist, args_cs' =
+            List.fold_left2
+              (fun (inductive_arg_exist,acc) (x,sort) clause ->
                 match inductive_arg (x,sort) clause with
-                |Some (x', clause') -> (x', clause')
-                |None ->
+                |Some (x', clause')when (not inductive_arg_exist) ->
+                  (true, acc@[(x', clause')])
+                |_ ->
                   let new_x = Id.genid_from_id x in
                   let clause' = Hfl.replace x new_x clause in
-                  (new_x, clause'))
-              args
-              pre_cs
+                  (inductive_arg_exist, acc@[(new_x, clause')]))
+            (false, [])            
+            args
+            pre_cs
           in
           let c' =
             List.fold_left2

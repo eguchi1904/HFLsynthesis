@@ -206,9 +206,10 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
               -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
   (fun ctx ep penv abduction_candidates scalar_heads spec ->
     let abduction_candidates_sequence =
-      Seq.shift_right
-        (AbductionCandidate.strengthen abduction_candidates)
-        abduction_candidates
+      (* Seq.shift_right *)
+      (*   (AbductionCandidate.strengthen abduction_candidates) *)
+      (*   abduction_candidates *)
+      Seq.singleton (abduction_candidates)
     in
     Seq.concat_map
       abduction_candidates_sequence
@@ -327,17 +328,28 @@ and f ctx ep penv abduction_candidate sort spec size =
     let app_term_seq = gen_app_terms ctx ep penv abduction_candidate spec size func_heads in
     app_term_seq
 
-  
+
+
+    
     
 let f ep penv abduction_candidate sort spec max_size =
-  Seq.unfold
-    ~init:1
-    ~f:(fun size ->
-      if size > max_size then None
-      else
-        Some ((f (Context.empty) ep penv abduction_candidate sort spec size),
-              size + 1)
-    )
-  |>
-    Seq.concat
-        
+  let abduction_candidates_sequence =
+    Seq.shift_right
+      (AbductionCandidate.strengthen abduction_candidate)
+      abduction_candidate
+  in
+  Seq.concat_map
+    abduction_candidates_sequence
+  ~f:(fun abduction_candidate ->
+    Seq.unfold
+      ~init:1
+      ~f:(fun size ->
+        if size > max_size then None
+        else
+          Some ((f (Context.empty) ep penv abduction_candidate sort spec size),
+                size + 1)
+      )
+    |>
+      Seq.concat
+  )
+

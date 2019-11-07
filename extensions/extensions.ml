@@ -130,7 +130,7 @@ module Combination = struct
       in
       split'@[n- tail_pin]
     
-  (* not fast. n,m must be small *)
+  (* not fast. n,m must be smallq q *)
   let split n m =
     if not (m <= n && 0<=m && 1<= n) then
       invalid_arg "Combination.split"

@@ -1,4 +1,5 @@
 module Seq = Base.Sequence
+open Extensions
            
 type t = {now: BaseLogic.t list
          ;candidates: BaseLogic.t list (* 順番に意味なし、setでもよい *)
@@ -47,6 +48,10 @@ let filter_unsat_candidate penv candiates =
       candiates
 
 
+let filter penv candidates =
+  List.uniq_f BaseLogicEq.f candidates
+  |> filter_unsat_candidate penv
+
 let initialize data_env penv qualifiers ~new_vars t =
   let candidates' =
     match new_vars with
@@ -56,7 +61,7 @@ let initialize data_env penv qualifiers ~new_vars t =
          List.map (Qualifier.gen_formulas data_env penv ~must_include_vars:(S.of_list new_vars)) qualifiers
          |> List.concat
        in
-       filter_unsat_candidate penv (new_candidates@t.now@t.candidates)
+       filter penv (new_candidates@t.now@t.candidates)
   in
   {now = [];
    candidates = candidates'}     
