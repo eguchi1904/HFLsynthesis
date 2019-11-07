@@ -134,12 +134,16 @@ module Combination = struct
   let split n m =
     if not (m <= n && 0<=m && 1<= n) then
       invalid_arg "Combination.split"
+    else if m = 1 then
+      [[n]]
     else
       let pins_list = chose (m-1) ((make_bag n),n-1) in
       List.map (split_by_pin n) pins_list
 
-  (* let _ =  chose  2 ([1;2;3;4],4) *)
-
+               (* let _ =  chose  2 ([1;2;3;4],4) *)
+               (* let _ = split 1 1 *)
+  (* let _ = split 3 1 *)
+  (*       let _ = split 5 2 *)
   (* let _ = split 6 2 *)
   (* let _ = chose 2 ([1;2;3;4;5],5) *)
       

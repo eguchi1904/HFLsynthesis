@@ -9,7 +9,7 @@ end
 
                       
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
-let generator data_env qualifiers e_depth =
+let generator data_env qualifiers e_max_size =
   (module struct
 
      type matchConditionInfo = {dataName:Id.t;
@@ -97,7 +97,7 @@ let generator data_env qualifiers e_depth =
 
 
      let gen_e_term ep penv abduction_candidate sort spec =
-       GenEterms.f ep penv abduction_candidate sort spec e_depth
+       GenEterms.f ep penv abduction_candidate sort spec e_max_size
        |> Seq.hd
 
 

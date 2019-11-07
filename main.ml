@@ -5,7 +5,7 @@ open Synthesis
 open PathEnv
 open AbductionCandidate
 
-let application_max_depth = 3
+let e_term_max_size = 5
 
 
 let syntheis synthesizer ep (var, (pathenv, sort)) =
@@ -41,7 +41,7 @@ let _ =
     ("hfl synthesis");  
   let data_env, ep, qualifiers, goals = Preprocess.f !file in
   let module Synthesizer =
-    (val (Synthesis.generator data_env qualifiers application_max_depth))
+    (val (Synthesis.generator data_env qualifiers e_term_max_size))
   in
   List.iter (syntheis Synthesizer.f ep) goals 
 

@@ -1,3 +1,4 @@
+open Extensions
 module Seq = Base.Sequence
 type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
 
@@ -243,14 +244,15 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
 
 
 let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list) list
-                  -> int
+                  -> int list
                   -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) Seq.t = 
-  (fun ctx ep penv abduction_candidate arg_specs depth ->
-    match arg_specs with
-    |[] -> Seq.singleton ([], abduction_candidate)
-    |(x, sort, spec)::lest_specs ->
+  (fun ctx ep penv abduction_candidate arg_specs sizes ->
+    assert (List.length sizes = List.length arg_specs);
+    match arg_specs,sizes with
+    |[],[] -> Seq.singleton ([], abduction_candidate)
+    |(x, sort, spec)::lest_specs, size::other_size ->
       let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
-        f ctx ep penv abduction_candidate sort spec depth
+        f ctx ep penv abduction_candidate sort spec size
       in
       Seq.concat_map
         term_for_x
@@ -259,11 +261,12 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
             List.map (Hfl.replace Id.valueVar_id x) clauses in
           let penv' = PathEnv.add_condition_list ex_conds penv in
           let ctx = Context.push_arg ex ctx in
-          gen_args ctx ep penv' abduction_candidate lest_specs depth
+          gen_args ctx ep penv' abduction_candidate lest_specs other_size
           |> Seq.map
                ~f:(fun (args, acc_abduction_candidate) ->
                  (x,(ex, ex_prop))::args, acc_abduction_candidate)
         )
+    |_-> assert false
   )
   
 
@@ -272,27 +275,37 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                  -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
   (fun ctx ep penv abduction_candidate spec size (head,`FunS (arg_sorts, ret_sort))  ->
     let ctx = Context.push_head head ctx in
-    match split_arg_spec_return_prop ep penv head spec with
-    |Some (arg_specs, ret_prop) ->
-      assert (List.length arg_specs = List.length arg_sorts);
-      let arg_specs_with_sort =
-        List.map2
-          (fun (x, spec) sort -> (x, sort, spec))
-          arg_specs arg_sorts
-      in
-      (* 引数列の候補 *)
-      let arg_seq = gen_args ctx ep penv abduction_candidate arg_specs_with_sort (size-1) in
-      Seq.map
-        arg_seq
-        ~f:(fun ((args:(Id.t * (Program.e * upProp)) list), abduction_candidate)  ->
-          let `Exists (binds, prop) = mk_args_prop args arg_sorts in
-          let up_prop = `Exists (binds, ret_prop::prop) in
-          let arg_e_terms = List.map (fun (_, (e, _)) -> e) args in
-          let e_term = Program.{head = head
-                               ;args = arg_e_terms}
-          in
-          (e_term, up_prop, abduction_candidate))
-  |None -> assert false
+    let arity = List.length arg_sorts in
+    if (arity +1 > size) then Seq.empty
+    else
+      match split_arg_spec_return_prop ep penv head spec with
+      |Some (arg_specs, ret_prop) ->
+        assert (List.length arg_specs = List.length arg_sorts);
+        let arg_specs_with_sort =
+          List.map2
+            (fun (x, spec) sort -> (x, sort, spec))
+            arg_specs arg_sorts
+        in
+        (* 引数sizeの候補 *)
+        let arg_sizes = Combination.split (size-1) arity in
+        let arg_seq =
+          Seq.concat_map
+            (Seq.of_list arg_sizes)
+            ~f:(fun arg_size ->
+                gen_args ctx ep penv abduction_candidate arg_specs_with_sort arg_size
+               )
+        in
+        Seq.map
+          arg_seq
+          ~f:(fun ((args:(Id.t * (Program.e * upProp)) list), abduction_candidate)  ->
+            let `Exists (binds, prop) = mk_args_prop args arg_sorts in
+            let up_prop = `Exists (binds, ret_prop::prop) in
+            let arg_e_terms = List.map (fun (_, (e, _)) -> e) args in
+            let e_term = Program.{head = head
+                                 ;args = arg_e_terms}
+            in
+            (e_term, up_prop, abduction_candidate))
+      |None -> assert false
   )
 
   
@@ -300,19 +313,31 @@ and gen_app_terms ctx ep penv abduction_candidates spec size (func_heads:(Id.t *
   List.map (gen_app_term ctx ep penv abduction_candidates spec size) func_heads
   |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
-  
-and f ctx ep penv abduction_candidate sort spec depth =
+
+(* size固定した状況でのsynthesis *)
+and f ctx ep penv abduction_candidate sort spec size =
   let HeadCandidates.{scalar = scalar_heads; func = func_heads}
     =  PathEnv.find_heads (Hfl.return_sort sort) penv
   in
-  let var_seq = gen_vars ctx ep penv abduction_candidate scalar_heads spec in
-  if depth <= 0 then
+  if size <= 0 then assert false
+  else if size = 1 then
+    let var_seq = gen_vars ctx ep penv abduction_candidate scalar_heads spec in    
     var_seq
   else
-    let app_term_seq = gen_app_terms ctx ep penv abduction_candidate spec depth func_heads in
-    Seq.append var_seq app_term_seq
+    let app_term_seq = gen_app_terms ctx ep penv abduction_candidate spec size func_heads in
+    app_term_seq
 
   
     
-let f  ep penv abduction_candidate sort spec depth =
-  f (Context.empty) ep penv abduction_candidate sort spec depth
+let f ep penv abduction_candidate sort spec max_size =
+  Seq.unfold
+    ~init:1
+    ~f:(fun size ->
+      if size > max_size then None
+      else
+        Some ((f (Context.empty) ep penv abduction_candidate sort spec size),
+              size + 1)
+    )
+  |>
+    Seq.concat
+        

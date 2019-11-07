@@ -15,7 +15,7 @@ type z3_env = sort_map * id_expr_map * id_fun_map
 let ctx = mk_context [("trace","true"); ("well_sorted_check","true");("debug_ref_count","true")]
 let () = (toggle_warning_messages true)
         
-        Z3.Datatype.mk_constructor
+
 
 let mk_z3_env () :z3_env=
   (Hashtbl.create 12345),(Hashtbl.create 12345),(Hashtbl.create 12345)
