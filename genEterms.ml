@@ -67,15 +67,18 @@ module Log:sig
   val log_trial: Context.t -> AbductionCandidate.t -> PathEnv.t ->  Id.t -> Constraint.t -> unit
 
   val log_trial_result: bool -> unit
+
+  val log_abduction: AbductionCandidate.t -> unit
 end = struct
   let log_cha = open_out "eterm_search.log"
   let log_trial ctx abduction_candi path_env  var cons  =
     Printf.fprintf
       log_cha
-      "TRIAL:\n %s \n?? <- %s\nabduction candidate:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n@."
+      "TRIAL:\n %s \n?? <- %s\nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n@."
       (Context.to_string ctx)
       (Id.to_string_readable var)
-      (AbductionCandidate.to_string abduction_candi)
+      (AbductionCandidate.get abduction_candi
+       |> List.map BaseLogic.p2string |> String.concat ";")
       (PathEnv.to_string path_env)
       (Constraint.to_string cons)
 
@@ -87,7 +90,13 @@ end = struct
     else
       Printf.fprintf
         log_cha
-        "\n\nTRIAL fail\n\n\n@."      
+        "\n\nTRIAL fail\n\n\n@."
+
+  let log_abduction abduction_candi =
+    Printf.fprintf
+      log_cha
+      "\n\n--------------------------------------------------\nnext abduction:\n%s\n\n--------------------------------------------------\n\n\n"
+    (AbductionCandidate.to_string abduction_candi)
 end  
 
 let choose_head_candidates ep penv sort spec =
@@ -340,16 +349,17 @@ let f ep penv abduction_candidate sort spec max_size =
   in
   Seq.concat_map
     abduction_candidates_sequence
-  ~f:(fun abduction_candidate ->
-    Seq.unfold
-      ~init:1
-      ~f:(fun size ->
-        if size > max_size then None
-        else
-          Some ((f (Context.empty) ep penv abduction_candidate sort spec size),
-                size + 1)
-      )
-    |>
-      Seq.concat
-  )
+    ~f:(fun abduction_candidate ->
+      let () = Log.log_abduction abduction_candidate in
+      Seq.unfold
+        ~init:1
+        ~f:(fun size ->
+          if size > max_size then None
+          else
+            Some ((f (Context.empty) ep penv abduction_candidate sort spec size),
+                  size + 1)
+        )
+      |>
+        Seq.concat
+    )
 

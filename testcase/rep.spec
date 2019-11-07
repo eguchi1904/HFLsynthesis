@@ -18,7 +18,6 @@ let[@measure][@termination] rec _len: list -> int = function
   |Nil -> 0
   |Cons (x, xs) -> _len xs + 1
 
-
                  
 let [@spec dec] d (n:int) (v:int) =
   (v = (n -1))

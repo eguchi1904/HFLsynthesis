@@ -5,7 +5,7 @@ open Synthesis
 open PathEnv
 open AbductionCandidate
 
-let e_term_max_size = 5
+let e_term_max_size = 7
 
 
 let syntheis synthesizer ep (var, (pathenv, sort)) =
