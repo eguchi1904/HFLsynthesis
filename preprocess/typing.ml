@@ -343,21 +343,36 @@ and g_clause env (c:clause) sort=
         raise (TypeError mes)
 
 
-and g_base env e sort = 
+and g_base env e sort =
+  let sort = match sort with
+    | `IntS | `DataS _ | `BoolS | `SetS _ as sort -> sort
+    | _ ->
+       let mes = Printf.sprintf 
+                   "%s expected to have base sort but have %s"
+                   (BaseLogic.p2string e)
+                   (Hfl.sort2string sort)
+       in
+       raise (TypeError mes)
+  in
   let (e', (bsort, const)) = cons_gen env e in
   let sita = BaseLogic.unify_sort const M.empty in
-  let e'' = BaseLogic.sort_subst2formula sita e' in
-  let bsort' =  BaseLogic.sort_subst sita bsort in
-  if (Hfl.of_baseLogic_sort bsort':>Hfl.sort) <> sort then
-    let mes = Printf.sprintf
-                "%s expected to have %s, but have %s"
-                (BaseLogic.p2string e)
-                (Hfl.sort2string sort)
-                (Hfl.sort2string ((Hfl.of_baseLogic_sort bsort'):>Hfl.sort))
+  let sita' =
+    try BaseLogic.unify_sort
+          [(bsort, Hfl.to_baseLogic_sort sort)]
+          sita
+    with
+      BaseLogic.Unify_Err ->
+      let bsort' =  BaseLogic.sort_subst sita bsort in      
+      let mes = Printf.sprintf
+                  "%s expected to have %s, but have %s"
+                  (BaseLogic.p2string e)
+                  (Hfl.sort2string sort)
+                  (Hfl.sort2string ((Hfl.of_baseLogic_sort bsort'):>Hfl.sort))
     in
     raise (TypeError mes)
-  else
-    e''
+  in
+  let e'' = BaseLogic.sort_subst2formula sita' e' in
+  e''
                  
   
 let g_qualifiers env q =

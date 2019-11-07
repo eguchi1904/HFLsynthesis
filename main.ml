@@ -15,10 +15,10 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
     (try
        let program = synthesizer ep pathenv var sort ~spec:fhorn in
        let ed = Sys.time () in
-       (Format.printf "%s\n\n@." (Program.to_string program));
-       (Format.printf "synthesis SUCSESS:\ntime:%f\nz3 time:%f\n@."
+       (Format.printf "synthesis SUCSESS:\ntime:%f\nz3 time:%f\n\n\n@."
                       (ed -. st)
-                      (!UseZ3.z3_t))
+                      (!UseZ3.z3_t));
+       (Format.printf "%s\n\n@." (Program.to_string program))
      with
      |Invalid_argument mes ->
        let ed = Sys.time () in       
