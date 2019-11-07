@@ -23,7 +23,6 @@ let generator data_env qualifiers e_depth =
        match cond_list with
        |[cond] ->
          begin
-           (Printf.printf "%s is match scr??\n" (BaseLogic.p2string cond));
            match cond with
            |Eq ((Var (bsort, x)),
                   Cons (bsort', scalar_cons, []))
@@ -40,7 +39,6 @@ let generator data_env qualifiers e_depth =
                                  }
               |_ -> assert false)
            |_ ->
-             (Printf.printf "%s isnt ??\n" (BaseLogic.p2string cond));
              None
          end
        | _ -> None
@@ -54,13 +52,21 @@ let generator data_env qualifiers e_depth =
          List.fold_right
            (fun (x, sort) penv' ->  PathEnv.add_bind x sort penv')
            (new_args :> (Id.t * Hfl.sort) list)
-         penv
+           penv
        in  
        let DataType.{constructor = cons'; args=args'; body = measure_constraint} = 
          DataType.Env.measure_constraint_of_constructor data_env (`DataS data) cons 
        in
        assert (cons' = cons);
-       let measure_constraint =
+       let equality_constraint = (* z = Cons x xs *)
+         let open BaseLogic in
+         Eq (Var (DataS(data,[]), z),
+             Cons (DataS(data,[]), cons, List.map
+                                       (fun (x,sort) -> Var (Hfl.to_baseLogic_sort sort, x))
+                                       new_args)
+            )
+       in
+       let measure_constraint = (* len z = len xs + 1 *)
          measure_constraint
          |> BaseLogic.replace Id.valueVar_id z
          |> List.fold_right2
@@ -68,7 +74,10 @@ let generator data_env qualifiers e_depth =
               args'
               new_args
        in
-       let penv = PathEnv.add_condition (`Base measure_constraint) penv in
+       let penv = penv
+                  |> PathEnv.add_condition (`Base measure_constraint) 
+                  |> PathEnv.add_condition (`Base equality_constraint) 
+       in
        match scrutinee_prop with
        |None -> penv
        |Some (`Exists (bind, scrutinee_prop)) ->
@@ -273,9 +282,9 @@ let generator data_env qualifiers e_depth =
        Hfl.{params = params'; args = args'; body = qhorn' }
 
 
-     let logcha = open_out "setting.log"
+
            
-     let log_setting ep =
+     let log_setting logcha ep =
        Printf.fprintf logcha "hfl equtaions:\n%s" (Hfl.Equations.to_string ep)
        
      let f: Hfl.Equations.t -> PathEnv.t -> Id.t -> Hfl.sort -> spec:Hfl.fhorn -> Program.t = 
@@ -283,8 +292,10 @@ let generator data_env qualifiers e_depth =
          let Hfl.{params = params; args = args; body = qhorn} = spec in
          let rec_spec = mk_rec_spec spec in (* 再起するときの仕様 *)
          let rec_name = Id.genid_const (Id.to_string_readable name) in
+         let logcha = open_out "setting.log" in
          let () = Hfl.Equations.add ep rec_name None rec_spec in
-         let () = log_setting ep in
+         let () = log_setting logcha ep in
+         let () = close_out logcha in
          let penv = PathEnv.add_bind rec_name sort penv in (* 再起用に追加 *)
          let penv = PathEnv.add_bind_list args penv in
          let abduction_candidate =

@@ -102,21 +102,50 @@ module Env = struct
     Hashtbl.mem t.constructors (Id.to_int id)
 
 
+  (* v  = Cons x xs -> len _v > 0 && len xs >0 *)
+  let terminatioin_annotaion measure_name data args =
+    let open BaseLogic in
+    List.fold_left
+      (fun acc (x, sort) ->
+        match sort with
+          | `DataS data' when data' = data ->
+             let len_x_term = 
+               UF (IntS,
+                   measure_name,
+                   [Var (DataS (data,[]), x)])
+             in
+             (Ge (len_x_term, Int 0))::acc
+          | _ -> acc)
+      []
+      args
+  |> BaseLogic.and_list
     
   let add_measure_case
         t
         measure_name
         (`DataS data)
         return_sort
+        termination
         (case:formulaCase)
     =
     let return_sort = Hfl.to_baseLogic_sort return_sort in
+    let len_v_term =
+      let open BaseLogic in      
+      UF (return_sort,
+          measure_name,
+          [Var (DataS (data,[]), Id.valueVar_id)])
+    in
+    let e' =
+      BaseLogic.Eq (len_v_term,
+                    case.body)
+    in
     let e' =
       let open BaseLogic in
-      Eq (UF (return_sort,
-              measure_name,
-              [Var (DataS (data,[]), Id.valueVar_id)]),
-          case.body)
+      if termination then       (* len _v >= 0 *)
+        BaseLogic.And ((terminatioin_annotaion measure_name data case.args),
+                       e')
+      else
+        e'
     in
     (* constructor用に変換 *)
     let case = {constructor = case.constructor;
@@ -142,7 +171,7 @@ module Env = struct
     in
     (* t.constructors の更新 *)
     List.iter
-      (add_measure_case t measure.name measure.inputSort measure.returnSort)
+      (add_measure_case t measure.name measure.inputSort measure.returnSort measure.termination)
       measure.matchCases
     
   let add_definition t (def:definition) =
