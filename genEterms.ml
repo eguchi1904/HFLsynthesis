@@ -146,13 +146,30 @@ let choose_head_candidates ep penv sort spec =
   PathEnv.find_heads (Hfl.return_sort sort) penv
 
 
-let check_consistency penv (`Exists(_, prop)) consistency_spec =
-  let cond_list = PathEnv.extract_condition penv in
-  let cond_list_z3 = List.map Hfl.clause_to_z3_expr cond_list in
-  let prop_z3 = List.map Hfl.clause_to_z3_expr prop in
-  let consistency_spec_z3 = List.map Hfl.clause_to_z3_expr consistency_spec in
-  let z3_expr = UseZ3.bind_and_list (cond_list_z3@prop_z3@consistency_spec_z3) in
-  UseZ3.is_satisfiable z3_expr
+(* 全てexistに潰す。 必要条件　*)
+let rec mk_init_consitency_spec_qhorn (qhorn:Hfl.qhorn) =
+  match qhorn with
+  | `Horn (cs, c) -> c::cs
+  | `Exists (_, _, qhorn) -> mk_init_consitency_spec_qhorn qhorn
+  | `Forall (_, _, qhorn) -> mk_init_consitency_spec_qhorn qhorn                        
+     
+      
+let mk_init_consitency_spec (spec:Hfl.qhorn list) =
+  List.map (mk_init_consitency_spec_qhorn) spec
+|> List.concat
+  
+  
+
+let check_consistency_opt penv (`Exists(_, prop)) consistency_spec_opt =
+  match consistency_spec_opt with
+  |None -> true
+  |Some consistency_spec -> 
+    let cond_list = PathEnv.extract_condition penv in
+    let cond_list_z3 = List.map Hfl.clause_to_z3_expr cond_list in
+    let prop_z3 = List.map Hfl.clause_to_z3_expr prop in
+    let consistency_spec_z3 = List.map Hfl.clause_to_z3_expr consistency_spec in
+    let z3_expr = UseZ3.bind_and_list (cond_list_z3@prop_z3@consistency_spec_z3) in
+    UseZ3.is_satisfiable z3_expr
   
   
 
@@ -180,10 +197,63 @@ let hfl_prop_of_leaf ep id sort :upProp= (* 毎回計算するの出なくキャ
   |Some c ->  `Exists ([], [c;phi])
   |None ->  `Exists ([], [phi])
 
+
+(* argのconsitency specを構成する 
+   match consistency_spec_opt with
+    |Some consistency -> 普通に分割
+ 　　|None -> 引数が2子以上の時のみ、末尾以外の引数にconsistency specを割り当てる
+*)
+let split_arg_consistency_spec v' head_arg_spec head_ret_spec spec consistency_spec_opt =
+  match consistency_spec_opt with
+  |Some consistency_spec -> 
+    let ret_consistency =
+      List.map
+        (Hfl.replace Id.valueVar_id v')
+        (head_ret_spec::consistency_spec)
+    in
+    let arg_consistency,_ =
+      List.fold_right
+        (fun (x, clause) (acc, next_arg_consistency) ->
+          (* [x -> v]clause::next_arg_consistency *)
+          let x_consistency =
+            List.map
+              (Hfl.replace x Id.valueVar_id)
+              (clause::next_arg_consistency)
+          in
+          Some (x_consistency)::acc, clause::next_arg_consistency)
+        head_arg_spec
+        ([], ret_consistency)
+    in
+    arg_consistency
+
+  |None when List.length head_arg_spec = 1 ->[None]
+  |None ->
+    assert (List.length head_arg_spec > 1);
+    let hd_arg_specs, (z,z_spec) = List.split_tail head_arg_spec in
+    let ret_consistency =
+      List.map
+        (Hfl.replace Id.valueVar_id v')
+        (z_spec::head_ret_spec::(mk_init_consitency_spec spec))
+    in
+    let hd_arg_consistency,_ =
+      List.fold_right
+        (fun (x, clause) (acc, next_arg_consistency) ->
+          (* [x -> v]clause::next_arg_consistency *)
+          let x_consistency =
+            List.map
+              (Hfl.replace x Id.valueVar_id)
+              (clause::next_arg_consistency)
+          in
+          Some (x_consistency)::acc, clause::next_arg_consistency)
+        hd_arg_specs
+        ([], ret_consistency)
+    in
+    hd_arg_consistency@[None]
+
 (* 引数のrequireする仕様を構成
    引数の変数名は、freshなものを返す
  *)
-let split_arg_spec_return_prop ep penv head spec consistency_spec =
+let split_arg_spec_return_prop ep penv head spec consistency_spec_opt =
   (* extract_fun_specが、argの変数名のfreshnessを保証 *)
   match Hfl.Equations.extract_fun_spec ep head with
   |Some head_spec ->
@@ -216,6 +286,7 @@ let split_arg_spec_return_prop ep penv head spec consistency_spec =
         head_spec.argSpecs
     in
     let head_ret_spec = Hfl.subst p_map head_spec.retSpec in
+    
     (* caliculate arg spec *)
     let v' = Id.genid (Id.to_string_readable head) in 
     let arg_spec =
@@ -236,32 +307,20 @@ let split_arg_spec_return_prop ep penv head spec consistency_spec =
         head_arg_spec
         splited_arg_specs
     in
-    (* caliculate arg consistency spec *)    
-    let ret_consistency =
-      List.map
-      (Hfl.replace Id.valueVar_id v')
-      (head_ret_spec::consistency_spec)
+    
+    (* caliculate arg consistency spec *)
+    let arg_consistency =
+      split_arg_consistency_spec v' head_arg_spec head_ret_spec spec consistency_spec_opt
     in
-    let arg_consistency,_ =
-      List.fold_right
-        (fun (x, clause) (acc, next_arg_consistency) ->
-          (* [x -> v]clause::next_arg_consistency *)
-          let x_consistency =
-            List.map
-              (Hfl.replace x Id.valueVar_id)
-              (clause::next_arg_consistency)
-          in
-          (x_consistency)::acc, clause::next_arg_consistency)
-        head_spec.argSpecs
-        ([], ret_consistency)
-    in
+    (assert (List.length arg_spec = List.length arg_consistency));
     let arg_spec_consistency_list =
       List.map2
         (fun (x, qhorn) x_consistency ->(x, qhorn, x_consistency))
         arg_spec
-      arg_consistency
+        arg_consistency
     in          
-    Some (arg_spec_consistency_list, head_ret_spec) (* pmap代入しないと *)
+    Some (arg_spec_consistency_list, head_ret_spec) (* pmap代入しないと *)    
+    
   |None -> None
 
 
@@ -301,9 +360,9 @@ let mk_args_prop (args:(Id.t * (Program.e * upProp)) list) sorts =
 
 (* do memo *)
 let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
-              -> (Id.t * Hfl.baseSort) list -> Hfl.qhorn list -> Hfl.clause list
+              -> (Id.t * Hfl.baseSort) list -> Hfl.qhorn list -> Hfl.clause list option
               -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
-  (fun ctx ep penv abduction_candidates scalar_heads spec consistency_spec ->
+  (fun ctx ep penv abduction_candidates scalar_heads spec consistency_spec_opt ->
     let abduction_candidates_sequence =
       (* Seq.shift_right *)
       (*   (AbductionCandidate.strengthen abduction_candidates) *)
@@ -326,7 +385,7 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
                                  (List.map (fun e -> `Base e) abduction_condition)
                                  penv
                    in
-                   let consistence = check_consistency penv leaf_prop consistency_spec in
+                   let consistence = check_consistency_opt penv leaf_prop consistency_spec_opt in
                    if not consistence then Seq.Step.Skip(next_candidates)
                    else
                      let cons = Constraint.make ep penv' ~prop:leaf_prop ~spec:spec in
@@ -348,16 +407,16 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
 
 
 
-let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list * Hfl.clause list ) list
+let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Hfl.sort * Hfl.qhorn list * Hfl.clause list option) list
                   -> int list
                   -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) Seq.t = 
   (fun ctx ep penv abduction_candidate arg_specs sizes ->
     assert (List.length sizes = List.length arg_specs);
     match arg_specs,sizes with
     |[],[] -> Seq.singleton ([], abduction_candidate)
-    |(x, sort, spec, x_consistency)::lest_specs, size::other_size ->
+    |(x, sort, spec, x_consistency_opt)::lest_specs, size::other_size ->
       let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
-        f ctx ep penv abduction_candidate sort spec x_consistency size
+        f ctx ep penv abduction_candidate sort spec x_consistency_opt size
       in
       Seq.concat_map
         term_for_x
@@ -375,15 +434,15 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
   )
   
   (* do memo *)
-and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list -> Hfl.clause list
+and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list -> Hfl.clause list option
                  -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
-  (fun ctx ep penv abduction_candidate spec consistency size (head,`FunS (arg_sorts, ret_sort))  ->
+  (fun ctx ep penv abduction_candidate spec consistency_opt size (head,`FunS (arg_sorts, ret_sort))  ->
     let ctx = Context.push_head head ctx in
     let arity = List.length arg_sorts in
     if (arity +1 > size) then Seq.empty
     else
-      match split_arg_spec_return_prop ep penv head spec consistency with
+      match split_arg_spec_return_prop ep penv head spec consistency_opt with
       |Some (arg_specs, ret_prop) ->
         assert (List.length arg_specs = List.length arg_sorts);
         let arg_specs_with_sort =
@@ -415,8 +474,8 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
   )
 
   
-and gen_app_terms ctx ep penv abduction_candidates spec consistency_spec size (func_heads:(Id.t * Hfl.funcSort) list) =
-  List.map (gen_app_term ctx ep penv abduction_candidates spec consistency_spec size) func_heads
+and gen_app_terms ctx ep penv abduction_candidates spec consistency_opt size (func_heads:(Id.t * Hfl.funcSort) list) =
+  List.map (gen_app_term ctx ep penv abduction_candidates spec consistency_opt size) func_heads
   |> Seq.round_robin            (* とりあえずround-robinで探索 *)
 
 
@@ -442,22 +501,8 @@ and f ctx ep penv abduction_candidate sort spec consistency_spec size =
       app_term_seq
 
 
-(* 全てexistに潰す。 必要条件　*)
-let rec mk_init_consitency_spec_qhorn (qhorn:Hfl.qhorn) =
-  match qhorn with
-  | `Horn (cs, c) -> c::cs
-  | `Exists (_, _, qhorn) -> mk_init_consitency_spec_qhorn qhorn
-  | `Forall (_, _, qhorn) -> mk_init_consitency_spec_qhorn qhorn                        
-     
-      
-let mk_init_consitency_spec (spec:Hfl.qhorn list) =
-  List.map (mk_init_consitency_spec_qhorn) spec
-|> List.concat
-  
-    
     
 let f ep penv abduction_candidate sort spec max_size =
-  let consistency_spec = mk_init_consitency_spec spec in
   let abduction_candidates_sequence =
     Seq.shift_right
       (AbductionCandidate.strengthen abduction_candidate)
@@ -473,7 +518,7 @@ let f ep penv abduction_candidate sort spec max_size =
         ~f:(fun size ->
           if size > max_size then None
           else
-            Some ((f (Context.empty) ep penv abduction_candidate sort spec consistency_spec size),
+            Some ((f (Context.empty) ep penv abduction_candidate sort spec None size),
                   size + 1)
         )
       |>
