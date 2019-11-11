@@ -325,11 +325,13 @@ let rec fv = function               (* 自由変数、 *)
   |All (args,t1) |Exist (args,t1) ->
     S.diff (fv t1) (S.of_list (List.map fst args))
 
-
+(* constructorも自由変数 *)
 let rec fv_include_v = function               (* 自由変数、 *)
   |Var (_,i) -> S.singleton i
   |Bool _ | Int _ |Unknown _ -> S.empty
-  |Set (_, ts) |Cons (_,_, ts) |UF (_,_,ts) ->
+  |Cons (_,cons, ts) ->
+    S.add cons (List.fold_left (fun acc t -> S.union acc (fv_include_v t)) S.empty ts)
+  |Set (_, ts)  |UF (_,_,ts) ->
     List.fold_left (fun acc t -> S.union acc (fv_include_v t)) S.empty ts
   |If (t1,t2,t3) ->S.union (fv_include_v t1) (S.union (fv_include_v t2) (fv_include_v t3) )
   |Times(t1,t2) |Plus(t1,t2) |Minus (t1,t2) |Eq(t1,t2) | Neq(t1,t2)|Lt(t1,t2)

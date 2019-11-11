@@ -1,11 +1,3 @@
-(* ignore *)
-
-let (==>) a b = (not a) || b
-let (&&&)  = (&&)
-let (|||) = (||)
-let (++) = (@)
-type 'a set = 'a list
-(* endignore *)
 
 let qualifier = [(fun (x:int) -> x < 1)]
 

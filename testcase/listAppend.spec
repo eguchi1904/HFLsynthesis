@@ -1,13 +1,3 @@
-(* ignore *)
-
-let (==>) a b = (not a) || b
-let (&&&)  = (&&)
-let (|||) = (||)
-let (++) = (@)
-type 'a set = 'a list          
-(* endignore *)
-
-
 type list =
   |Nil
   |Cons of int * list
@@ -21,7 +11,8 @@ let[@measure][@termination] rec _len: list -> int = function
 let [@measure] rec _elm: list -> int set = function
   |Nil -> []
   |Cons (x, xs) -> _elm xs ++ [x]
-    
+
+
                  
 (* let [@spec dec] d (n:int) (v:int) = *)
 (*   (v = (n -1)) *)

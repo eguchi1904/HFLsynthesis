@@ -5,7 +5,7 @@ open Synthesis
 open PathEnv
 open AbductionCandidate
 
-let e_term_max_size = 7
+let e_term_max_size = 5
 
 
 let syntheis synthesizer ep (var, (pathenv, sort)) =
@@ -15,18 +15,22 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
     (try
        let program = synthesizer ep pathenv var sort ~spec:fhorn in
        let ed = Sys.time () in
-       (Format.printf "synthesis SUCSESS:\ntime:%f\nz3 time:%f\n\n\n@."
+       (Format.printf "synthesis SUCSESS:\ntime:%f\nz3 time:%f\niteration:%d\n\n\n@."
                       (ed -. st)
-                      (!UseZ3.z3_t));
+                      (!UseZ3.z3_t)
+                      (!GenEterms.iteration_count)
+       )
+       ;
        (Format.printf "%s\n\n@." (Program.to_string program))
      with
      |Invalid_argument mes ->
        let ed = Sys.time () in       
-       Format.printf "synthesize FAIL: *%s\ntime:%f\ntime of z3:%f\n
+       Format.printf "synthesize FAIL: *%s\ntime:%f\ntime of z3:%f\niteration:%d
                       @."
                      mes
                      (ed -. st)
                      (!UseZ3.z3_t)
+                      (!GenEterms.iteration_count)       
     )
   |Some _ -> assert false
   |None -> assert false

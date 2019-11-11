@@ -48,29 +48,58 @@ let make
   ep, shared_premise, qhorn_list
 
 
-let rec clause_to_base (c:Hfl.clause) =
-  match c with
-  | `Base base_e -> base_e
-  | `Or (c1, c2) -> BaseLogic.Or ((clause_to_base c1), (clause_to_base c2))
-  | `And (c1, c2) -> BaseLogic.And ((clause_to_base c1), (clause_to_base c2))
-  | _ -> assert false
-                  
-  
-let rec clause_to_z3_expr: Hfl.clause -> Z3.Expr.expr =
-  (fun c ->
-    let base = clause_to_base c  in
-    (* let () = Printf.eprintf "clause->z3:%s\n" (BaseLogic.p2string_with_sort base) in *)
-    fst (BaseLogic.to_z3_expr base)
-  )
 
+  
+let rec extract_related_var' vars = function
+  | c :: lest ->
+     let c_fv = Hfl.fv c in
+     if S.exists (fun x -> S.mem x vars) c_fv then
+       extract_related_var' (S.union vars c_fv) lest
+     else
+       extract_related_var' vars lest
+  |[] -> vars
+
+let rec extract_related_var vars cs  =
+  let vars' = extract_related_var' vars cs in
+  if S.equal vars vars' then
+    vars
+  else
+    extract_related_var vars' cs
+
+let rec lift_baseLogic_and =function
+  | `Base base :: other ->
+     let base_list = BaseLogic.list_and base in
+     let cs = List.map (fun base -> `Base base) base_list in
+     cs@(lift_baseLogic_and other)
+
+  | clause :: other ->
+     clause :: (lift_baseLogic_and other)
+
+  | [] -> []
+  
+  
+let extract_necessary_clauses vars cs =
+  let cs = lift_baseLogic_and cs in
+  let vars = extract_related_var vars cs in
+  List.filter (fun c -> (not (S.is_empty (S.inter vars (Hfl.fv c))))) cs
+     
+
+  
 let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
   match qhorn with
+  | `Horn (pre_clauses, `Base (BaseLogic.Bool true) ) -> true
   | `Horn  (pre_clauses ,res_clause) ->
-     let pre_clauses_z3 = List.map clause_to_z3_expr pre_clauses in
-     let res_clause_z3 = clause_to_z3_expr res_clause in
-     let z3_expr = UseZ3.mk_horn (shared_premise::pre_clauses_z3) res_clause_z3 in
+     let pre_clauses = shared_premise@pre_clauses in
+     (* refine clause: 効果はなかった *)
+     (* let related_vars = Hfl.fv res_clause in *)
+     (* let pre_clauses = extract_necessary_clauses related_vars pre_clauses in *)
+
+     let pre_clauses_z3 = List.map Hfl.clause_to_z3_expr pre_clauses in
+     let res_clause_z3 = Hfl.clause_to_z3_expr res_clause in
+     
+     let z3_expr = UseZ3.mk_horn pre_clauses_z3 res_clause_z3 in
      let valid = UseZ3.is_valid z3_expr in
-     (* (Printf.eprintf "\nIS valid\n%s\n\n~~~>%b" (Z3.Expr.to_string z3_expr) valid);      *)
+     (* (Printf.eprintf "\nIS valid\n%s\n\n~~~>%b" (Z3.Expr.to_string z3_expr) valid); *)
      valid
   | `Forall (_,_, qhorn) -> is_valid_horn shared_premise qhorn
   | `Exists _ -> invalid_arg "is_valid_horn"
@@ -79,11 +108,7 @@ let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
              
 (* 適宜拡張していこう。まずは超単純なもののみ *)
 let is_valid (ep, shared_premise, qhorn_list) =
-  let shared_premise_z3 =
-    List.map clause_to_z3_expr shared_premise
-    |> UseZ3.bind_and_list
-  in
-  List.for_all (is_valid_horn shared_premise_z3) qhorn_list
+  List.for_all (is_valid_horn shared_premise) qhorn_list
   
 
 
@@ -118,15 +143,13 @@ let rec mk_arg_spec (arg:(Id.t * Hfl.sort) list)
          (Hfl.add_premise_qhorn shared_premise)
          qhorn_list]
   |(id,sort)::lest ->
-    (id, [`Horn ([], top)])
+    (id, [])                    
     ::(mk_arg_spec lest shared_premise qhorn_list)
     
                 
-
     
 let split (arg:(Id.t * Hfl.sort) list) (cons:t) =
   let (ep, shared_premise, qhorn_list) = cons in
-
   let arg_specs: (Id.t * Hfl.qhorn list) list =
     mk_arg_spec arg shared_premise qhorn_list
   in
@@ -138,10 +161,9 @@ let solve (params:(Id.t * Hfl.abstSort) list) ((ep, shared_premise, qhorn_list):
   |_::_ -> invalid_arg "not impl yet"
 
 
+         
+  
+  
 
-  
-  
-  
-  
 
        

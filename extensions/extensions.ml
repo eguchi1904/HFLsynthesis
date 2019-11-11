@@ -1,6 +1,6 @@
 module List = struct
   include List
-
+                                                                                        
   let rec split_tail' l acc_hd =
     match l with
     |[] -> invalid_arg "list:split_tali"
@@ -87,9 +87,6 @@ module IntSet =
   
 
 module Combination = struct
-
-
-
 
   let rec chose m (bag,size) =  (* 前から選んだ組み合わせ *)
     if size < m then []

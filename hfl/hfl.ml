@@ -318,7 +318,23 @@ let subst_bottom =
   subst' bottom_map M.empty clause
   )
   
-       
+
+let rec clause_to_base (c:clause) =
+  match c with
+  | `Base base_e -> base_e
+  | `Or (c1, c2) -> BaseLogic.Or ((clause_to_base c1), (clause_to_base c2))
+  | `And (c1, c2) -> BaseLogic.And ((clause_to_base c1), (clause_to_base c2))
+  | _ -> assert false
+                  
+  
+let rec clause_to_z3_expr: clause -> Z3.Expr.expr =
+  (fun c ->
+    let base = clause_to_base c  in
+    (* let () = Printf.eprintf "clause->z3:%s\n" (BaseLogic.p2string_with_sort base) in *)
+    fst (BaseLogic.to_z3_expr base)
+  )
+
+  
 type qhorn 
   = [ `Horn of clause list * clause 
     | `Exists of Id.t * baseSort * qhorn
