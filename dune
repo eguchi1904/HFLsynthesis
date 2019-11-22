@@ -11,4 +11,5 @@
 (executable
 (name main)
 (libraries z3 base)
+(modules_without_implementation solveEquality)
 )

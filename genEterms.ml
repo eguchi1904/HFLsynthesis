@@ -1,7 +1,5 @@
 open Extensions
 module Seq = Base.Sequence
-type spec = {valid: Hfl.qhorn  list;
-             sat: (Hfl.clause list) list}
 type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
 
 let iteration_count = ref 0
@@ -114,6 +112,10 @@ module Memo:sig
   val find: Context.t -> int -> t -> (Program.e * upProp * AbductionCandidate.t) list option
 
   val clear: t -> unit
+
+  val remove: Context.t -> int -> t -> unit
+
+  val remove_empty: t -> unit
     
 end= struct
 
@@ -134,6 +136,17 @@ end= struct
     Hashtbl.find_opt t (ctx, size)
            
   let clear t = Hashtbl.clear t
+
+
+  let remove ctx size t =
+    Hashtbl.remove t (ctx, size)
+
+  let remove_empty t =
+    Hashtbl.filter_map_inplace
+      (fun key var ->
+        if var = [] then None
+        else Some var)
+    t
 end
 
 (* グローバルなmemo *)
@@ -503,11 +516,15 @@ and f ctx ep penv abduction_candidate sort spec consistency_spec size =
 
     
 let f ep penv abduction_candidate sort spec max_size =
+  (* let () = Memo.clear memo in   *)
   let abduction_candidates_sequence =
     Seq.shift_right
       (AbductionCandidate.strengthen abduction_candidate)
       abduction_candidate
   in
+  (* for size = 1 to max_size do *)
+  (*   Memo.remove Context.empty size memo *)
+  (* done; *)
   Seq.concat_map
     abduction_candidates_sequence
     ~f:(fun abduction_candidate ->
@@ -518,7 +535,10 @@ let f ep penv abduction_candidate sort spec max_size =
         ~f:(fun size ->
           if size > max_size then None
           else
-            Some ((f (Context.empty) ep penv abduction_candidate sort spec None size),
+            let seq = f (Context.empty) ep penv abduction_candidate sort spec None size
+                      |> Seq.map  ~f:(fun (e, prop, _) -> (e, prop, abduction_candidate))
+            in
+            Some (seq,
                   size + 1)
         )
       |>
