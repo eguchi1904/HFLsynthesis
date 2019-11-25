@@ -76,6 +76,28 @@ type  clause = (*\psi(x,y): predicate type formula *)
                       args:clause list}
 
   and  abstClause = [`Abs of (Id.t * sort) list * clause]
+
+let rec size = function
+  | `Base _ -> 1
+  | `Abs (_, c) -> size c + 2
+  | `App {head = _; params = params; args = args} ->
+     let param_size =
+       List.map size (params:>clause list) |> List.fold_left (+) 0
+     in
+     let args_size =
+       List.map size args |> List.fold_left (+) 0
+     in
+     1 + param_size + args_size
+  | `RData (_, params, arg) ->
+     let param_size =
+       List.map size (params:>clause list) |> List.fold_left (+) 0
+     in
+     1 + param_size + (size arg)
+  | `Or (c1, c2) | `And (c1, c2) ->
+     1 + (size c1) + (size c2)
+     
+                
+  
                   
 let rec fv = function
   | `Base base -> BaseLogic.fv_include_v base
@@ -114,6 +136,16 @@ let rec fv = function
      S.union
        (fv c1)
        (fv c2)
+
+let rec app_term_exist: clause -> bool = function
+  | `Base _ -> false
+  | `App _ | `RData _ ->  true
+  | `Abs (_ ,body) -> app_term_exist body
+  | `Or (c1, c2) | `And (c1, c2) ->
+     (app_term_exist c1) || (app_term_exist c2)
+
+
+
 
 let rec to_string_abs (`Abs (args, body))= 
      let args_str = args
@@ -283,7 +315,20 @@ let subst =
       in
       subst' predicate_map base_term_map clause)
 
+let subst_base_term =
+  (fun base_term_map clause ->
+    if M.is_empty base_term_map then
+      clause
+    else
+    subst' M.empty base_term_map clause)
 
+let subst_base_term_abs =
+  (fun base_term_map abs ->
+    if M.is_empty base_term_map then
+      abs
+    else
+      subst_abs' M.empty base_term_map abs)
+  
 let bottom_predicate = function
   | `FunS (arg_sorts, `BoolS) ->
      let formal_args = List.map (fun sort -> (Id.genid "_", sort)) arg_sorts in
@@ -327,16 +372,12 @@ let rec clause_to_base (c:clause) =
   | _ -> assert false
                   
   
-let rec clause_to_z3_expr: clause -> Z3.Expr.expr =
-  (fun c ->
-    let base = clause_to_base c  in
-    (* let () = Printf.eprintf "clause->z3:%s\n" (BaseLogic.p2string_with_sort base) in *)
-    fst (BaseLogic.to_z3_expr base)
-  )
 
+
+type horn =  [ `Horn of clause list * clause ]
   
 type qhorn 
-  = [ `Horn of clause list * clause 
+  = [ horn
     | `Exists of Id.t * baseSort * qhorn
     | `Forall of Id.t * baseSort * qhorn
     ]
@@ -429,6 +470,15 @@ let replace_fhorn x y {params = params;
    body = replace_qhorn x y qhorn}
   
 
+let sort_of_fhorn {params = params;
+                   args = args;
+                   body = _} =
+  assert (params = []);
+  let arg_sort = List.map snd args in
+  if arg_sort = [] then
+    `BoolS
+  else
+  `FunS (arg_sort, `BoolS)
   
 (* input:   \x. \y. \phi(x,y) 
    output:  \x'.\y'.\phi(x',y')                   
@@ -477,6 +527,8 @@ sig
 
   val find: t -> Id.t -> (fixOp option * fhorn) option
 
+  val find_sort: t -> Id.t -> sort option
+
 
   type func_spec = {fixOp: fixOp option
                    ;params:(Id.t * abstSort) list 
@@ -519,6 +571,11 @@ end
   let find arr id =
     arr.(Id.to_int id)
 
+  let find_sort arr id =
+    match find arr id with
+    |None -> None
+    |Some (_, fhorn) -> Some (sort_of_fhorn fhorn)
+    
   type func_spec = {fixOp: fixOp option
                    ;params:(Id.t * abstSort) list 
                    ;args:(Id.t * sort) list

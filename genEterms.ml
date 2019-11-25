@@ -178,9 +178,18 @@ let check_consistency_opt penv (`Exists(_, prop)) consistency_spec_opt =
   |None -> true
   |Some consistency_spec -> 
     let cond_list = PathEnv.extract_condition penv in
-    let cond_list_z3 = List.map Hfl.clause_to_z3_expr cond_list in
-    let prop_z3 = List.map Hfl.clause_to_z3_expr prop in
-    let consistency_spec_z3 = List.map Hfl.clause_to_z3_expr consistency_spec in
+    let cond_list_z3 = List.map
+                         UseZ3.clause_to_z3_expr
+                         cond_list
+                     |> List.map fst
+    in
+    let prop_z3 = List.map UseZ3.clause_to_z3_expr prop
+                |> List.map fst
+
+    in
+    let consistency_spec_z3 = List.map UseZ3.clause_to_z3_expr consistency_spec
+                            |> List.map fst
+    in
     let z3_expr = UseZ3.bind_and_list (cond_list_z3@prop_z3@consistency_spec_z3) in
     UseZ3.is_satisfiable z3_expr
   

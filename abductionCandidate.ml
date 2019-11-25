@@ -36,12 +36,12 @@ let filter_unsat_candidate penv candiates =
     let penv_z3 =
     PathEnv.extract_condition penv
     |> List.map (function |`Base e -> e | _ -> invalid_arg "not impl yet")
-    |> List.map BaseLogic.to_z3_expr
+    |> List.map UseZ3.convert
     |> List.map fst
     in
     List.filter
       (fun condition ->
-        let condition_z3 = fst (BaseLogic.to_z3_expr condition) in
+        let condition_z3 = fst (UseZ3.convert condition) in
         UseZ3.bind_and_list (condition_z3::penv_z3)
         |>UseZ3.is_satisfiable
       )

@@ -94,8 +94,8 @@ let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
      (* let related_vars = Hfl.fv res_clause in *)
      (* let pre_clauses = extract_necessary_clauses related_vars pre_clauses in *)
 
-     let pre_clauses_z3 = List.map Hfl.clause_to_z3_expr pre_clauses in
-     let res_clause_z3 = Hfl.clause_to_z3_expr res_clause in
+     let pre_clauses_z3 = List.map UseZ3.clause_to_z3_expr pre_clauses |> List.map fst in
+     let res_clause_z3,_ = UseZ3.clause_to_z3_expr res_clause in
      
      let z3_expr = UseZ3.mk_horn pre_clauses_z3 res_clause_z3 in
      let valid = UseZ3.is_valid z3_expr in

@@ -4,7 +4,7 @@ open Z3.Symbol
 open Z3.Expr
 open Z3.Solver
 
-
+module Formula = BaseLogic
 type sort_map = ((Formula.sort),(Sort.sort)) Hashtbl.t (* hashを試してみる *)
 type id_expr_map = ((Id.t),(Expr.expr)) Hashtbl.t
 type id_fun_map = ((Id.t), (FuncDecl.func_decl)) Hashtbl.t
@@ -80,7 +80,6 @@ let rec formula2z3 (ctx:context) (smap:sort_map) (emap:id_expr_map) (fmap:id_fun
     
   |Formula.Var (sort, i) ->
     let z_sort = sort2z3 ctx smap sort in
-
     (try
        let z3_i =  (Hashtbl.find emap i) in
        (* (Printf.printf "\n%s z_sort is %s\n" i (Z3.Sort.to_string (get_sort z3_i))); *)
@@ -266,7 +265,9 @@ let rec formula2z3 (ctx:context) (smap:sort_map) (emap:id_expr_map) (fmap:id_fun
 (* let convert ((smap,emap,fmap):z3_env) (e:Formula.t) = *)
 (*   (Printf.printf "\n\nconvert:%s\n" (Formula.p2string_with_sort e)); *)
 (*   formula2z3 ctx smap emap fmap e *)
-
+  
+let hfl2z3 (c:Hfl.clause) =
+  assert false
   
 let convert (e:Formula.t) =
   let ((smap,emap,fmap):z3_env) = mk_z3_env () in
@@ -274,11 +275,45 @@ let convert (e:Formula.t) =
   formula2z3 ctx smap emap fmap e
 
 
+let rec clause_to_z3_expr: Hfl.clause -> (Z3.Expr.expr * Z3.Sort.sort) =
+  (function
+   | `Base base -> convert base
+   | `And (c1, c2) ->
+      let z3_c1, c1_sort = clause_to_z3_expr c1 in
+      let z3_c2, c2_sort = clause_to_z3_expr c2 in
+      (assert (c1_sort = c1_sort && c1_sort = (Boolean.mk_sort ctx)));      
+      (Boolean.mk_and ctx [z3_c1; z3_c2], Boolean.mk_sort ctx)
+   | `Or (c1, c2) ->
+      let z3_c1, c1_sort = clause_to_z3_expr c1 in
+      let z3_c2, c2_sort = clause_to_z3_expr c2 in
+      (assert (c1_sort = c1_sort && c1_sort = (Boolean.mk_sort ctx)));            
+      (Boolean.mk_or ctx [z3_c1; z3_c2], Boolean.mk_sort ctx)
+      
+   | `App Hfl.{head = head; params = []; args = args} ->
+      let z3_arg_sort_list = List.map clause_to_z3_expr args in
+      let z3_args, arg_sorts = List.split z3_arg_sort_list in
+      let z3_head = (FuncDecl.mk_func_decl_s ctx (Id.to_string head) arg_sorts (Boolean.mk_sort ctx)) in
+      (mk_app ctx z3_head z3_args), (Boolean.mk_sort ctx)
+   | _ -> assert false
+  )
+      
+
+  
+
 let mk_horn (pre:Expr.expr list) (res:Expr.expr) = 
   (Boolean.mk_implies ctx (Boolean.mk_and ctx pre) res)
 
 
 let bind_and_list expr_list = (Boolean.mk_and ctx expr_list)
+
+let horn_to_z3_expr : Hfl.horn -> Z3.Expr.expr =
+  (fun (`Horn (cs,c)) ->
+    let z3_cs = List.map clause_to_z3_expr cs
+                |> List.map fst
+    in
+    let z3_c = fst (clause_to_z3_expr c) in
+    mk_horn z3_cs z3_c
+  )
   
 exception CANT_SOLVE
 let z3_t = ref 0.0

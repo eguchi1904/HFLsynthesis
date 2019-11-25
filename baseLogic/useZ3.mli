@@ -1,10 +1,14 @@
 type z3_env
-   
+
 val mk_z3_env : unit -> z3_env  (* deplicate *)
   
 val z3_t : float ref            (* time used by z3 *)
   
-val convert : Formula.t -> Z3.Expr.expr * Z3.Sort.sort
+val convert : BaseLogic.t -> Z3.Expr.expr * Z3.Sort.sort
+
+val clause_to_z3_expr: Hfl.clause -> Z3.Expr.expr * Z3.Sort.sort
+
+val horn_to_z3_expr: Hfl.horn -> Z3.Expr.expr
 
 val mk_horn: Z3.Expr.expr list -> Z3.Expr.expr -> Z3.Expr.expr
 
