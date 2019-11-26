@@ -1,4 +1,5 @@
 module List = Base.List
+open List.Or_unequal_lengths
 
 
 let subst_base_term_horn sita =
@@ -47,21 +48,70 @@ let rec separate_toplevel_apps (clause:Hfl.clause) =
      (apps1@apps2, c1'@c2')
   | e -> ([], [e])
 
+       
 let solve_horn (`Horn (cs,c)) =
-  assert false
+  match c with
+  | `Base (BaseLogic.Bool true) -> true
+  | _ ->
+     let z3_cs = List.map ~f:UseZ3.clause_to_z3_expr cs |> List.map ~f:fst in
+     let z3_c = UseZ3.clause_to_z3_expr c |> fst in
+     let z3_expr = UseZ3.mk_horn z3_cs z3_c in
+      UseZ3.is_valid z3_expr
+
+
+let decompose_abst_terms_implication (`Abs (args1, body1)) (`Abs (args2, body2)) =
+  match
+    List.fold2
+      ~init:body2
+      ~f:(fun body (x,_) (x',_) -> Hfl.replace x' x body)
+      args1
+      args2
+  with
+  |Unequal_lengths -> assert false
+  |Ok body2 ->
+    (body1, body2)
+
   
 (* うーん *)
 let decompose_application_terms_implication_by_monotonicity:
-      Hfl.application -> Hfl.application
+      Hfl.topSort -> Hfl.application -> Hfl.application
       -> (BaseLogic.t * BaseLogic.t * BaseLogic.sort) list 
          * ((Hfl.clause * Hfl.clause) list )=
-  (fun {head = head; params = params1; args = args1}
+  (fun head_sort
+       {head = head; params = params1; args = args1}
        {head = head'; params = params2; args = args2} ->
     if head <> head' then invalid_arg " docompose "
     else
-      
-      assert false
+      ((assert (params1 = params2 && params2 = []));
+        match head_sort with
+        | `BoolS -> assert (args1 = []);
+                    ([],[])
+        | `FunS (arg_sorts, `BoolS) ->
+           match List.map3 args1 args2 arg_sorts ~f:(fun c1 c2 sort -> (c1, c2, sort)) with
+           |Unequal_lengths -> assert false
+           |Ok arg_constraints ->
+             let eq_cons, ineq_cons =
+               List.partition_map
+                 arg_constraints
+                 ~f:(fun (c1,c2,sort) ->
+                       match sort with
+                       | `BoolS -> `Snd (c1, c2)
+                       | `IntS | `DataS _ | `SetS _ as bsort ->
+                          (match c1, c2 with
+                          | `Base b1, `Base b2 -> 
+                             `Fst (b1, b2, Hfl.to_baseLogic_sort bsort)
+                          | _ -> assert false )
+                       | `FunS _ ->
+                          match c1, c2 with
+                          | (`Abs _ as c1), (`Abs _ as c2) ->
+                             `Snd (decompose_abst_terms_implication c1 c2)
+                          | _ -> assert false
+                 )
+             in
+             eq_cons, ineq_cons
+      )
   )
+  
 
 
 let rec solve_inequality_constraints:

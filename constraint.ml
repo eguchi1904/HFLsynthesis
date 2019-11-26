@@ -96,12 +96,13 @@ let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
 
      let pre_clauses_z3 = List.map UseZ3.clause_to_z3_expr pre_clauses |> List.map fst in
      let res_clause_z3,_ = UseZ3.clause_to_z3_expr res_clause in
-     
      let z3_expr = UseZ3.mk_horn pre_clauses_z3 res_clause_z3 in
      let valid = UseZ3.is_valid z3_expr in
      (* (Printf.eprintf "\nIS valid\n%s\n\n~~~>%b" (Z3.Expr.to_string z3_expr) valid); *)
+
      valid
-  | `Forall (_,_, qhorn) -> is_valid_horn shared_premise qhorn
+  | `Forall (_,_, qhorn) ->
+     is_valid_horn shared_premise qhorn
   | `Exists _ -> invalid_arg "is_valid_horn"
      
      
