@@ -527,7 +527,7 @@ sig
 
   val find: t -> Id.t -> (fixOp option * fhorn) option
 
-  val find_sort: t -> Id.t -> sort option
+  val find_sort: t -> Id.t -> topSort option
 
 
   type func_spec = {fixOp: fixOp option
