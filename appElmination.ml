@@ -157,7 +157,7 @@ and solve_equality_inequality_constraints:
     |None -> None
     |Some sita ->
       (* in_eq_consをどうにかする *)
-      let binds = List.filter binds ~f:(fun (id, _) -> M.mem id sita) in
+      let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id sita)) in
       (match solve_inequality_constraints
                ~exists:binds ep sita ~premise ineq_cons
        with
@@ -176,6 +176,7 @@ and solve_equality_inequality_constraints:
 
 (* 結論からapplicationのtermを消し去りたい。 *)
 (* rDataはいらない、ということにしようとり会えず *)
+(* これ本当は、Seqを返すとするのが良いんだろうな。まずは動かしたいのであれだけど *)
 and solve_application:
       exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
@@ -232,7 +233,7 @@ and solve_application_list:
        |Some (sita', horns) ->
          let acc_sita = M.union (fun _ -> assert false) acc_sita sita' in
          let acc_horn = horns@acc_horn in
-         let binds = List.filter binds ~f:(fun (id, _) -> M.mem id acc_sita) in
+         let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id acc_sita)) in
          solve_application_list
            ~exists:binds ep ~premise other acc_sita acc_horn
       )
@@ -283,7 +284,7 @@ and eliminate_app_from_or_clause_list ~exists:binds ep ~premise or_clauses acc_s
      |Some (sita', horns) ->
        let acc_sita = M.union (fun _ -> assert false) acc_sita sita' in
        let acc_horn = horns@acc_horn in
-       let binds = List.filter binds ~f:(fun (id, _) -> M.mem id acc_sita) in
+       let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id acc_sita)) in
        eliminate_app_from_or_clause_list
          ~exists:binds ep ~premise other acc_sita acc_horn
     )
@@ -296,7 +297,7 @@ and elminate_app ~exists:binds ep ~premise clause =
   with
   |None -> None                 (* app-termがequality的に成立しない *)
   |Some (sita, horn_list_from_app) ->
-    let binds = List.filter binds ~f:(fun (id, _) -> M.mem id sita) in
+    let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id sita)) in
     let or_clauses_with_app_term, other_clauses =
       List.partition_map
         other_clauses
