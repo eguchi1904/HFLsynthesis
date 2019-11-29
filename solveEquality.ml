@@ -89,30 +89,41 @@ let rec express_int_term_by_representative_variable env e =
 
 
 let solve_int_term acc_sita ~exists env e1 e2 =
-  let e1 = express_int_term_by_representative_variable env e1 in
-  let e2 = express_int_term_by_representative_variable env e2 in  
-  let e1_poly = Polynomial.of_term e1 in
-  let e2_poly = Polynomial.of_term e2 in
-  match Polynomial.solve_eq ~exists e1_poly e2_poly with
-  |Some sita_poly ->
-    let new_sita =
-      M.mapi
-        (fun id e ->
-          let e' = e |> Polynomial.to_term |> TermIdTable.unfold in
-          if (S.mem id (fv_include_v e')) then
-            invalid_arg "solve_int_term: not yet impl"
-          else
-            e'
-        )
-        sita_poly
-    in
-    let acc_sita = M.union
-                     (fun _ -> assert false)
-                     acc_sita
-                     new_sita
-    in
-    Some acc_sita
+  let e1 = express_int_term_by_representative_variable env e1
+           |> TermIdTable.unfold_const
+  in
+  let e2 = express_int_term_by_representative_variable env e2
+           |> TermIdTable.unfold_const         
+  in
+  match  Polynomial.of_term e1 with
   |None -> None
+  |Some e1_poly -> 
+    (match Polynomial.of_term e2 with
+     |None -> None
+     |Some e2_poly -> 
+       (match Polynomial.solve_eq ~exists e1_poly e2_poly with
+        |Some sita_poly ->
+          let new_sita =
+            M.mapi
+              (fun id e ->
+                let e' = e |> Polynomial.to_term |> TermIdTable.unfold in
+                if (S.mem id (fv_include_v e')) then
+                  invalid_arg "solve_int_term: not yet impl"
+                else
+                  e'
+              )
+              sita_poly
+          in
+          let acc_sita = M.union
+                           (fun _ -> assert false)
+                           acc_sita
+                           new_sita
+          in
+          Some acc_sita
+        |None -> None
+       )
+    )
+
   
 
 
@@ -157,7 +168,8 @@ let rec solve acc_sita ~exists env eq_list=
        
           
           
-        
+let f ~exists env eq_list =
+  solve M.empty ~exists env eq_list
         
         
   

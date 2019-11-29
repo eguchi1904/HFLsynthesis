@@ -14,28 +14,28 @@ module Premise:sig
 
   val add:Hfl.clause -> t -> t
 
-  val show_equality_premise: t -> (BaseLogic.t * BaseLogic.t ) list
+  val show_equality_env: t -> SolveEquality.Env.t
 
 
 
 end = struct
 
   type t = {generalPremise:Hfl.clause list;
-            equalityPremise:(BaseLogic.t * BaseLogic.t) list (* subset *)
+            equalityPremise:SolveEquality.Env.t
            }
 
   let show t = t.generalPremise
 
-  let add c t =
+  let add c t = 
     {generalPremise = c::t.generalPremise;
      equalityPremise = match c with
                        | `Base BaseLogic.Eq (e1, e2) ->
-                          (e1, e2)::t.equalityPremise
+                          SolveEquality.Env.add e1 e2 t.equalityPremise
                        | _ ->
                           t.equalityPremise
     }
-
-  let show_equality_premise t = t.equalityPremise
+ 
+  let show_equality_env t = t.equalityPremise
                          
 end
 
@@ -152,8 +152,10 @@ and solve_equality_inequality_constraints:
           * ((Hfl.clause * Hfl.clause) list )
       -> (BaseLogic.t M.t * (Hfl.horn list)) option =
   (fun ~exists:binds ep ~premise (eq_cons, ineq_cons) ->
-    let equality_premise = Premise.show_equality_premise premise in
-    match SolveEquality.f ~exists:binds ~equality_premise eq_cons with
+    let equality_env = Premise.show_equality_env premise in
+    (* 結局sortは必要なかったのでad-hocにここで削除 *)
+    let eq_cons = List.map ~f:(fun (e1, e2, _) -> (e1, e2)) eq_cons in
+    match SolveEquality.f ~exists:(List.map ~f:fst binds) equality_env eq_cons with
     |None -> None
     |Some sita ->
       (* in_eq_consをどうにかする *)

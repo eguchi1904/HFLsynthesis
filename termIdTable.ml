@@ -10,7 +10,7 @@ sig
 
   val to_term_subst: t -> BaseLogic.t M.t
 
-  val is_const_id: t -> Id.t -> BaseLogic.sort -> bool
+  val is_const_id: t -> Id.t -> bool
 
 end = struct
 
@@ -53,8 +53,9 @@ end = struct
       t.idTermHash
       M.empty
 
-  let is_const_id t id sort =
-    match to_term t id sort  with
+  let is_const_id t id  =
+    let dummy_sort = BaseLogic.IntS in
+    match to_term t id dummy_sort  with
     |Int _ |Bool _ -> true
     |_ -> false
       
@@ -71,7 +72,7 @@ let to_id e = Table.to_id global e
             
 let to_term id sort = Table.to_term global id sort
 
-let is_const_id id sort = Table.is_const_id global id sort
+let is_const_id id = Table.is_const_id global id 
 
 let unfold e =
   let sita = Table.to_term_subst global in
