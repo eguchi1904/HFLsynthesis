@@ -1,8 +1,7 @@
 type t
 
-exception Not_Integer_term
         
-val of_term: BaseLogic.t -> t 
+val of_term: BaseLogic.t -> t option
 
 val to_term: t -> BaseLogic.t
 

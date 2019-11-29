@@ -1,3 +1,32 @@
+
+module OptionMonad = struct
+  
+  let (>>=) : 'a option -> ('a -> 'b option) -> 'b option =
+    (fun x f ->
+      match x with
+      |None -> None
+      |Some v -> f v)
+
+  let return : 'a -> 'a option =
+    (fun x -> Some x)
+
+  let map_option : ('a -> 'b option) -> 'a list -> ('b list) option =
+    (fun f l ->
+      List.fold_right
+        (fun x acc ->
+          acc >>=
+            (fun acc_list ->
+              f x >>=
+                (fun y ->
+                  return (y::acc_list)))
+        )
+        l
+        (return [])
+    )
+    
+end
+
+                   
 module List = struct
   include List
                                                                                         

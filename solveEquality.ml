@@ -17,7 +17,7 @@ sig
     
 end = struct
   (* len x, Cons x xs などの項にfreshな変数を割り当てる *)
-    
+  (* 定数を特別扱いしたい気持ちになるな... *)
   (* 要素が大きいならunionfindとか使うべきだろうけど、unionあまり発生しないのでこれで良いだろう *)
   type t = (Id.t M.t)  
 
@@ -41,6 +41,13 @@ end = struct
     let e2_group = TermIdTable.to_id e2 |> group_id t in
     if e1_group = e2_group then t
     else
+      (* constを優先的に代表元にする *)
+      let e1_group, e2_group =
+        if TermIdTable.is_const_id e1_group then
+          e2_group, e1_group
+        else
+          e1_group, e2_group
+      in
       union e1_group e2_group t
 
 
