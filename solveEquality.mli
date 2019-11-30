@@ -1,6 +1,8 @@
 module Env:
 sig
   type t
+
+  val empty:t
      
   val add: BaseLogic.t -> BaseLogic.t -> t -> t
 

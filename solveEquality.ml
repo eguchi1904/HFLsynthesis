@@ -4,6 +4,8 @@ open BaseLogic
 module Env:
 sig
   type t
+
+  val empty: t
      
   val add: BaseLogic.t -> BaseLogic.t -> t -> t
 
@@ -19,7 +21,9 @@ end = struct
   (* len x, Cons x xs などの項にfreshな変数を割り当てる *)
   (* 定数を特別扱いしたい気持ちになるな... *)
   (* 要素が大きいならunionfindとか使うべきだろうけど、unionあまり発生しないのでこれで良いだろう *)
-  type t = (Id.t M.t)  
+  type t = (Id.t M.t)
+
+  let empty = M.empty
 
   let group_id t id =
     match M.find_opt id t with
