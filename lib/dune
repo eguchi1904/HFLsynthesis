@@ -4,20 +4,11 @@
  (dev
  (flags (:standard  -bin-annot -g -warn-error -A )))
 (release
-(flags (:standard  -bin-annot -noassert))))
-
-
+(flags (:standard -bin-annot -noassert))))
 
 (library
-(name main)
+(public_name fptSynthesis)
 (libraries z3 base)
 (modules_without_implementation )
 )
-
-
-
-
-
-
-
 

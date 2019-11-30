@@ -4,7 +4,8 @@ open Hfl
 open Synthesis
 open PathEnv
 open AbductionCandidate
-open AppElmination
+open AppElimination
+open SolveEquality
    
 let e_term_max_size = 7
 
@@ -36,9 +37,10 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
   |Some _ -> assert false
   |None -> assert false
 
-  
 
-let _ =
+
+
+let f () =
   let file = ref "" in
   Arg.parse
     []

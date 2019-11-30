@@ -10,6 +10,8 @@ let subst_base_term_horn sita =
 module Premise:sig
   type t
 
+  val empty:t
+
   val show: t -> Hfl.clause list
 
   val add:Hfl.clause -> t -> t
@@ -24,6 +26,10 @@ end = struct
             equalityPremise:SolveEquality.Env.t
            }
 
+
+  let empty = {generalPremise = [];
+               equalityPremise = SolveEquality.Env.empty}
+            
   let show t = t.generalPremise
 
   let add c t = 
@@ -131,7 +137,7 @@ let rec solve_inequality_constraints:
               let c1 = Hfl.subst_base_term sita c1 in
               let c2 = Hfl.subst_base_term sita c2 in
               let premise = Premise.add c1 premise in
-              (match elminate_app ~exists:binds ep ~premise c2 with
+              (match eliminate_app ~exists:binds ep ~premise c2 with
                |None -> None                                  
                |Some (sita', horn_list) ->
                 Some (
@@ -249,9 +255,9 @@ and eliminate_app_from_or_clause ~exists:binds ep ~premise (`Or (c1,c2)) :(BaseL
     let c_small, c_big =
       if Hfl.size c1 < Hfl.size c2 then c1, c2 else c2, c1
     in
-    match elminate_app ~exists:binds ep ~premise c_small with
+    match eliminate_app ~exists:binds ep ~premise c_small with
     |None ->
-      elminate_app ~exists:binds ep ~premise c_big
+      eliminate_app ~exists:binds ep ~premise c_big
     |Some (sita, horn_list) ->
       let c_small_valid =
         List.for_all
@@ -261,7 +267,7 @@ and eliminate_app_from_or_clause ~exists:binds ep ~premise (`Or (c1,c2)) :(BaseL
       if c_small_valid then
         Some (sita, [])
       else
-        elminate_app ~exists:binds ep ~premise c_big
+        eliminate_app ~exists:binds ep ~premise c_big
 
 
 and eliminate_app_from_or_clause_list ~exists:binds ep ~premise or_clauses acc_sita acc_horn:(BaseLogic.t M.t * (Hfl.horn list)) option  =
@@ -292,7 +298,7 @@ and eliminate_app_from_or_clause_list ~exists:binds ep ~premise or_clauses acc_s
     )
     
   
-and elminate_app ~exists:binds ep ~premise clause =
+and eliminate_app ~exists:binds ep ~premise clause =
   let toplevel_apps, other_clauses = separate_toplevel_apps clause in
   match solve_application_list
           ~exists:binds ep ~premise toplevel_apps M.empty []
@@ -323,6 +329,17 @@ and elminate_app ~exists:binds ep ~premise clause =
          List.map ~f:(subst_base_term_horn sita) horn_list_from_app
        in
        Some (sita, other_clauses_horn::(horn_list_from_app@horns_from_or)))
+
+
+    
+let f ~exists:binds ep penv clause =
+  let premise = List.fold_right
+                  ~f:Premise.add
+                  (PathEnv.extract_condition penv)
+                  ~init:Premise.empty
+  in
+  eliminate_app ~exists:binds ep ~premise clause
+
 
   
   
