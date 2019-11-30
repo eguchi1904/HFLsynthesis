@@ -50,6 +50,9 @@ module TestSolveEquality = struct
           (Id.to_string_readable i)^"-->"^(BaseLogic.p2string e)^"; "^acc)
         sita
         ""
+
+  let problem_to_string e1 e2 =
+    (BaseLogic.p2string e1)^" = "^(BaseLogic.p2string e2)
      
   let test1 () =
     let i = Id.genid_const "i" in
@@ -64,7 +67,7 @@ module TestSolveEquality = struct
     let result =
       SolveEquality.f ~exists:[i'] env [(e1, e2)]
     in
-    "result:TEST1\n"^result_to_string result |> print_string
+    "result of"^(problem_to_string e1 e2)^"\n"^result_to_string result |> print_string
     
     
   let f () = List.iter (fun f -> f ()) [test1]

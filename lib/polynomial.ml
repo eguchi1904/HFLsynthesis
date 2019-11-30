@@ -21,15 +21,13 @@ let add (map1, const1) (map2, const2) =
               map2
   in
   (map, const1 + const2)
+  
+let neg (map, const) =
+  let map = M.map (fun i -> -i) map in
+  (map, -const)
 
-
-let minus (map1, const1) (map2, const2) =
-  let map = M.union
-              (fun _ i1 i2 -> Some (i1 - i2))
-              map1
-              map2
-  in
-  (map, const1 - const2)
+let minus poly1 poly2 =
+  add poly1 (neg poly2)
 
 
 let elminate_zero (map, const) = 
@@ -42,9 +40,7 @@ let equal poly1 poly2 =
   (M.equal (=) map1 map2) && (const1 = const2)
   
 
-let neg (map, const) =
-  let map = M.map (fun i -> -i) map in
-  (map, -const)
+
 
 let rec of_term = function
   |Int i -> return (M.empty, i)
@@ -92,9 +88,17 @@ let to_term (map, const) =
   M.fold
     (fun id c acc ->
       if acc = Int 0 then
-        Times (Int c, Var (IntS, id))
+        (if c = 1 then
+           Var (IntS, id)
+         else
+           Times (Int c, Var (IntS, id)))
       else
-        Plus (Times (Int c, Var (IntS, id)), acc))
+        (if c = 1 then
+           Plus (Var (IntS, id), acc)
+         else if c = -1 then
+           Minus (acc, Var (IntS, id))
+         else
+           Plus (Times (Int c, Var (IntS, id)), acc)))
     map
     (Int const)
 
