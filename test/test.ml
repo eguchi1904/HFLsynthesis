@@ -58,8 +58,8 @@ module TestSolveEquality = struct
     let i_var = Var (IntS, i) in
     let i'_var = Var (IntS, i') in
     let n_var = Var (IntS, n) in
-    let e1 = Plus (Minus (n_var, Int 1), i'_var) in
-    let e2 = Plus (n_var, i_var) in
+    let e1 = Plus (Minus (n_var, Int 1), i'_var) in(* (n+i')-1 *)
+    let e2 = Plus (n_var, i_var) in                (* n+i *)
     let env = SolveEquality.Env.empty in
     let result =
       SolveEquality.f ~exists:[i'] env [(e1, e2)]

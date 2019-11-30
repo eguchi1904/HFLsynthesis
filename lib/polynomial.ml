@@ -109,7 +109,7 @@ let solve_poly_eq_zero_by_specific_var var (map,const) =
     if M.for_all (fun _ c -> (abs c) mod (abs c_var) = 0) migrated_map
        && (abs migrated_const) mod (abs c_var) = 0
     then
-      Some ((M.map (fun c -> c/c_var) map), migrated_const/c_var)
+      Some ((M.map (fun c -> c/c_var) migrated_map), migrated_const/c_var)
     else
       None
   )
