@@ -1,1 +1,1 @@
-(test (name test) (libraries fptSynthesis))
+(executable (name test) (libraries fptSynthesis))

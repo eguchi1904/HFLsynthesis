@@ -1,8 +1,8 @@
 (include_subdirs unqualified)
 
 (env
- (dev
- (flags (:standard  -bin-annot -g -warn-error -A )))
+(dev
+(flags (:standard  -bin-annot -g -warn-error -A )))
 (release
 (flags (:standard -bin-annot -noassert))))
 

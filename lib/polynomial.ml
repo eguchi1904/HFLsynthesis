@@ -35,6 +35,11 @@ let minus (map1, const1) (map2, const2) =
 let elminate_zero (map, const) = 
   let map = M.filter (fun _ c -> c <> 0) map in
   (map, const)
+
+let equal poly1 poly2 =
+  let (map1, const1) = elminate_zero poly1 in
+  let (map2, const2) = elminate_zero poly2 in
+  (M.equal (=) map1 map2) && (const1 = const2)
   
 
 let neg (map, const) =
@@ -43,6 +48,7 @@ let neg (map, const) =
 
 let rec of_term = function
   |Int i -> return (M.empty, i)
+  |Var (IntS, var) -> return ((M.singleton var 1), 0)
   |UF _ ->  None
   |Times (t1, t2) ->
     of_term t1 >>=
