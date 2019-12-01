@@ -84,10 +84,12 @@ let extract_necessary_clauses vars cs =
   List.filter (fun c -> (not (S.is_empty (S.inter vars (Hfl.fv c))))) cs
      
 
+
+  
   
 let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
   match qhorn with
-  | `Horn (pre_clauses, `Base (BaseLogic.Bool true) ) -> true
+  | `Horn (_, `Base (BaseLogic.Bool true) ) -> true
   | `Horn  (pre_clauses ,res_clause) ->
      let pre_clauses = shared_premise@pre_clauses in
      (* refine clause: 効果はなかった *)

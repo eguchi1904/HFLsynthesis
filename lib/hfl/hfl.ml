@@ -393,6 +393,16 @@ let rec qhorn_to_string (qhorn:qhorn) =
      "∃"^(Id.to_string_readable x)^":"^(sort2string (sort:>sort))^"."^(qhorn_to_string qhorn)
   | `Forall (x, sort, qhorn) ->
      "∀"^(Id.to_string_readable x)^":"^(sort2string (sort:>sort))^"."^(qhorn_to_string qhorn)    
+
+    
+let rec split_outside_exists (qhorn:qhorn) =
+  match qhorn with
+  | `Horn _ | `Forall _ -> ([], qhorn)
+  | `Exists (x, x_sort, body) ->
+     let (binds, body') =  split_outside_exists body in
+     (x, x_sort)::binds, body'
+
+  
   
 
 (* type existsHorn = [`Exists of Id.t * baseSort * existsHorn] *)
@@ -531,7 +541,8 @@ sig
 
 
   type func_spec = {fixOp: fixOp option
-                   ;params:(Id.t * abstSort) list 
+                   ;params:(Id.t * abstSort) list
+                   ;exists:(Id.t * baseSort) list
                    ;args:(Id.t * sort) list
                    ;argSpecs:(Id.t * clause) list
                    ;retSpec: clause}
@@ -577,7 +588,8 @@ end
     |Some (_, fhorn) -> Some (sort_of_fhorn fhorn)
     
   type func_spec = {fixOp: fixOp option
-                   ;params:(Id.t * abstSort) list 
+                   ;params:(Id.t * abstSort) list
+                   ;exists:(Id.t * baseSort) list
                    ;args:(Id.t * sort) list
                    ;argSpecs:(Id.t * clause) list
                    ;retSpec: clause}
@@ -587,28 +599,28 @@ end
     |None -> None
     |Some (Some _, _) ->
       invalid_arg "hfl.extract_fun_spec: not implement yet"
-    |Some (None, qhorn) ->
-      let qhorn = alpha_rename qhorn in
-      (match qhorn with
-      |{params = params;
-        args = args;
-        body= `Horn (pre, c)} ->
-        (* Printf.printf "%s !!\n" (Id.to_string_readable id); *)
-        assert ((List.length args) = (List.length pre));
-        
-        let arg_specs = List.map2
-                          (fun (id,_) clause -> id, clause)
-                          args
-                          pre
-        in
-        Some {fixOp = None
-             ;params = params
-             ;args = args
-             ;argSpecs  = arg_specs
-             ;retSpec = c}
-      |_ -> invalid_arg "hfl.extract_fun_spec: not implement yet"
+    |Some (None, fhorn) ->
+      let {params = params; args = args; body= body} = alpha_rename fhorn in
+      (match split_outside_exists body with
+       |exists, `Horn (pre, c) -> 
+         (* Printf.printf "%s !!\n" (Id.to_string_readable id); *)
+         assert ((List.length args) = (List.length pre));
+         
+         let arg_specs = List.map2
+                           (fun (id,_) clause -> id, clause)
+                           args
+                           pre
+         in
+         Some {fixOp = None
+              ;params = params
+              ;exists = exists
+              ;args = args
+              ;argSpecs  = arg_specs
+              ;retSpec = c}
+       |_ -> invalid_arg "hfl.extract_fun_spec: not implement yet"
       )
-        
+
+      
       
 
 

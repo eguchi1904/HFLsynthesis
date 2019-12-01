@@ -3,6 +3,7 @@ module Seq = Base.Sequence
 type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
 
 let iteration_count = ref 0
+                    
 (* for debug and memorization: specify the position of e-term *)
 module Context:sig
   type t
@@ -272,77 +273,94 @@ let split_arg_consistency_spec v' head_arg_spec head_ret_spec spec consistency_s
     in
     hd_arg_consistency@[None]
 
+
+(* existで束縛されている量化子が、引数部分に出現しないこと *)
+let exists_variable_occur_check (func_spec:Hfl.Equations.func_spec) =
+  let exists = func_spec.exists in
+  List.for_all
+    (fun (_, clause) ->
+      S.for_all
+        (fun x -> not (List.mem_assoc x exists))
+        (Hfl.fv clause)
+    )
+    func_spec.argSpecs
+  
+  
 (* 引数のrequireする仕様を構成
    引数の変数名は、freshなものを返す
  *)
+
 let split_arg_spec_return_prop ep penv head spec consistency_spec_opt =
   (* extract_fun_specが、argの変数名のfreshnessを保証 *)
   match Hfl.Equations.extract_fun_spec ep head with
   |Some head_spec ->
-    (* ここをabduction的な形で綺麗にまとめれば良いな。それだけか。まあ今綺麗にせんでも良いか。 *)
-    let cons = Constraint.make ep penv
-                               ~prop:(`Exists ([], [head_spec.retSpec]))
-                               ~spec:spec
-    in
-    let free_cons, splited_arg_specs = (* abduction的なことをする *)
-      Constraint.split head_spec.args cons
-    in
-    (* pramsのpredicateを具体化して、代入する *)
-    let p_map =
-      (Constraint.solve head_spec.params free_cons:> Hfl.clause M.t)
-    in
-    (* pmap_を適用 *)
-    let splited_arg_specs =
-      List.map
-        (fun (id, qhorn_list)->
-          (id, (List.map (Hfl.subst_qhorn
-                            p_map
-                         )
-                         qhorn_list)
+    if not (exists_variable_occur_check head_spec) then
+      invalid_arg "split_arrg_spec_return_prop:exists variable occur in arg "
+    else
+      (* ここをabduction的な形で綺麗にまとめれば良いな。それだけか。まあ今綺麗にせんでも良いか。 *)
+      let cons = Constraint.make ep penv
+                                 ~prop:(`Exists ([], [head_spec.retSpec]))
+                                 ~spec:spec
+      in
+      let free_cons, splited_arg_specs = (* abduction的なことをする *)
+        Constraint.split head_spec.args cons
+      in
+      (* pramsのpredicateを具体化して、代入する *)
+      let p_map =
+        (Constraint.solve head_spec.params free_cons:> Hfl.clause M.t)
+      in
+      (* pmap_を適用 *)
+      let splited_arg_specs =
+        List.map
+          (fun (id, qhorn_list)->
+            (id, (List.map (Hfl.subst_qhorn
+                              p_map
+                           )
+                           qhorn_list)
           ))
-        splited_arg_specs
-    in
-    let head_arg_spec =
-      List.map
-        (fun (id, clause) -> (id, Hfl.subst p_map clause))
-        head_spec.argSpecs
-    in
-    let head_ret_spec = Hfl.subst p_map head_spec.retSpec in
-    
-    (* caliculate arg spec *)
-    let v' = Id.genid (Id.to_string_readable head) in 
-    let arg_spec =
-      List.map2
-        (fun (x, clause) (y, splited_spec) ->
-          assert(x = y);
-          let splited_spec =    (* phi(x,v) -> phi(v, v') *)
-            List.map (Hfl.replace_qhorn Id.valueVar_id v') splited_spec
-            |> List.map (Hfl.replace_qhorn y Id.valueVar_id)
-          in
-          match clause with
-          | `Base (BaseLogic.Bool true) ->
-             (x, splited_spec)
-          | _ -> 
-             let clause' = Hfl.replace x Id.valueVar_id clause in
-             let qhorn:Hfl.qhorn = `Horn ([], clause') in
-             (x, qhorn::splited_spec))
-        head_arg_spec
-        splited_arg_specs
-    in
-    
-    (* caliculate arg consistency spec *)
-    let arg_consistency =
-      split_arg_consistency_spec v' head_arg_spec head_ret_spec spec consistency_spec_opt
-    in
-    (assert (List.length arg_spec = List.length arg_consistency));
-    let arg_spec_consistency_list =
-      List.map2
-        (fun (x, qhorn) x_consistency ->(x, qhorn, x_consistency))
-        arg_spec
-        arg_consistency
-    in          
-    Some (arg_spec_consistency_list, head_ret_spec) (* pmap代入しないと *)    
-    
+          splited_arg_specs
+      in
+      let head_arg_spec =
+        List.map
+          (fun (id, clause) -> (id, Hfl.subst p_map clause))
+          head_spec.argSpecs
+      in
+      let head_ret_spec = Hfl.subst p_map head_spec.retSpec in
+      
+      (* caliculate arg spec *)
+      let v' = Id.genid (Id.to_string_readable head) in 
+      let arg_spec =
+        List.map2
+          (fun (x, clause) (y, splited_spec) ->
+            assert(x = y);
+            let splited_spec =    (* phi(x,v) -> phi(v, v') *)
+              List.map (Hfl.replace_qhorn Id.valueVar_id v') splited_spec
+              |> List.map (Hfl.replace_qhorn y Id.valueVar_id)
+            in
+            match clause with
+            | `Base (BaseLogic.Bool true) ->
+               (x, splited_spec)
+            | _ -> 
+               let clause' = Hfl.replace x Id.valueVar_id clause in
+               let qhorn:Hfl.qhorn = `Horn ([], clause') in
+               (x, qhorn::splited_spec))
+          head_arg_spec
+          splited_arg_specs
+      in
+      
+      (* caliculate arg consistency spec *)
+      let arg_consistency =
+        split_arg_consistency_spec v' head_arg_spec head_ret_spec spec consistency_spec_opt
+      in
+      (assert (List.length arg_spec = List.length arg_consistency));
+      let arg_spec_consistency_list =
+        List.map2
+          (fun (x, qhorn) x_consistency ->(x, qhorn, x_consistency))
+          arg_spec
+          arg_consistency
+      in          
+      Some (arg_spec_consistency_list, head_ret_spec) (* pmap代入しないと *)    
+      
   |None -> None
 
 

@@ -55,15 +55,6 @@ let rec separate_toplevel_apps (clause:Hfl.clause) =
   | e -> ([], [e])
 
        
-let solve_horn (`Horn (cs,c)) =
-  match c with
-  | `Base (BaseLogic.Bool true) -> true
-  | _ ->
-     let z3_cs = List.map ~f:UseZ3.clause_to_z3_expr cs |> List.map ~f:fst in
-     let z3_c = UseZ3.clause_to_z3_expr c |> fst in
-     let z3_expr = UseZ3.mk_horn z3_cs z3_c in
-      UseZ3.is_valid z3_expr
-
 
 let decompose_abst_terms_implication (`Abs (args1, body1)) (`Abs (args2, body2)) =
   match
@@ -296,8 +287,8 @@ and eliminate_app_from_or_clause_list ~exists:binds ep ~premise or_clauses acc_s
        eliminate_app_from_or_clause_list
          ~exists:binds ep ~premise other acc_sita acc_horn
     )
-    
-  
+
+
 and eliminate_app ~exists:binds ep ~premise clause =
   let toplevel_apps, other_clauses = separate_toplevel_apps clause in
   match solve_application_list
@@ -309,7 +300,7 @@ and eliminate_app ~exists:binds ep ~premise clause =
     let or_clauses_with_app_term, other_clauses =
       List.partition_map
         other_clauses
-        ~f:(function | (`Or _ as c)->
+        ~f:(function | (`Or _ as c) ->
                         if Hfl.app_term_exist c then
                           `Fst c  else `Snd c
                      | (_ as c) -> `Snd c)

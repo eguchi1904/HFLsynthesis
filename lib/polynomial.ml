@@ -41,7 +41,6 @@ let equal poly1 poly2 =
   
 
 
-
 let rec of_term = function
   |Int i -> return (M.empty, i)
   |Var (IntS, var) -> return ((M.singleton var 1), 0)
