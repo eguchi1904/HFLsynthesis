@@ -10,6 +10,28 @@ let subst_base_term_horn sita =
           `Horn (List.map ~f:(Hfl.subst_base_term sita) cs,
                  Hfl.subst_base_term sita c)
 
+
+(* 結果をandでまとめる *)
+let rec bind_solutions
+        :BaseLogic.t M.t
+         -> 'a list
+         -> f:(BaseLogic.t M.t -> 'a -> solution Seq.t)
+         -> solution Seq.t =
+  (fun sita l ~f ->
+    match l with
+    |[] -> Seq.singleton (sita, [])
+    |x::xs ->
+      let solution_of_x = f sita x in
+      Seq.concat_map
+        solution_of_x
+        ~f:(fun (sita, horn)
+            -> bind_solutions sita xs ~f
+               |> Seq.map
+                    ~f:(fun (sita, horn_xs) ->(sita, horn@horn_xs))
+        )
+  )
+                      
+
 module Premise:sig
   type t
 
@@ -57,7 +79,8 @@ let rec separate_toplevel_apps (clause:Hfl.clause) =
      (apps1@apps2, c1'@c2')
   | e -> ([], [e])
 
-       
+
+
 
 let decompose_abst_terms_implication (`Abs (args1, body1)) (`Abs (args2, body2)) =
   match
@@ -116,80 +139,69 @@ let decompose_application_terms_implication_by_monotonicity:
 
 let rec solve_inequality_constraints:
       int
+      -> BaseLogic.t M.t
       -> exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
-      -> BaseLogic.t M.t
       -> premise:Premise.t
       ->((Hfl.clause * Hfl.clause) list )
-      -> (BaseLogic.t M.t * (Hfl.horn list)) option =
-  (fun expand_count ~exists:binds ep sita ~premise ineq_cons ->
-    List.fold_left
-          ~init:(Some (sita, []))
-          ~f:(fun acc (c1, c2) ->
-            match acc with
-            |None -> None
-            |Some (sita, acc_list) -> 
-              let c1 = Hfl.subst_base_term sita c1 in
-              let c2 = Hfl.subst_base_term sita c2 in
-              let premise = Premise.add c1 premise in
-              (match eliminate_app expand_count ~exists:binds ep ~premise c2 with
-               |None -> None                                  
-               |Some (sita', horn_list) ->
-                Some (
-                    (M.union (fun _ -> assert false) sita sita'),
-                    horn_list@acc_list
-                  )
-              )
-          )
-          ineq_cons
+      -> solution Seq.t = 
+  (fun expand_count sita ~exists:binds ep ~premise ineq_cons ->
+    bind_solutions
+      sita ineq_cons
+      ~f:(fun sita (c1, c2) ->
+        let premise' = Premise.add c1 premise in
+        eliminate_app expand_count sita ~exists:binds ep ~premise:premise' c2
+      )
   )
+
 (* solveするよりか、 eqだけといて制約たちを返す、という方がよっぽどの嬉しさがあるな。 *)
 (* そうしよう *)
 and solve_equality_inequality_constraints:
       int
+      -> BaseLogic.t M.t  
       -> exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
       -> premise:Premise.t
       ->  (BaseLogic.t * BaseLogic.t * BaseLogic.sort) list 
           * ((Hfl.clause * Hfl.clause) list )
-      -> (BaseLogic.t M.t * (Hfl.horn list)) option =
-  (fun expand_count ~exists:binds ep ~premise (eq_cons, ineq_cons) ->
+      -> solution Seq.t = 
+  (fun expand_count sita ~exists:binds ep ~premise (eq_cons, ineq_cons) ->
     let equality_env = Premise.show_equality_env premise in
-    (* 結局sortは必要なかったのでad-hocにここで削除 *)
-    let eq_cons = List.map ~f:(fun (e1, e2, _) -> (e1, e2)) eq_cons in
-    match SolveEquality.f ~exists:(List.map ~f:fst binds) equality_env eq_cons with
-    |None -> None
-    |Some sita ->
+    (* sitaの反映 *)
+    let eq_cons =
+      List.map
+        eq_cons       
+        ~f:(fun (e1, e2, _)
+            -> (BaseLogic.substitution sita e1, BaseLogic.substitution sita e2))
+    in
+    let exists_for_solve_eq =
+      List.map ~f:fst binds
+      |> List.filter ~f:(fun id -> not (M.mem id sita))
+    in
+    match SolveEquality.f ~exists:exists_for_solve_eq equality_env eq_cons with (* ここには非決定性がないはずなので *)
+    |None -> Seq.empty
+    |Some sita' ->
+      let sita = M.union (fun _ -> assert false) sita sita' in
       (* in_eq_consをどうにかする *)
-      let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id sita)) in
-      (match solve_inequality_constraints
-              expand_count  ~exists:binds ep sita ~premise ineq_cons
-       with
-       |None -> None
-       |Some (sita, implications) ->
-         (* sitaの代入 *)
-         let implications =
-           List.map
-             implications
-             ~f:(subst_base_term_horn sita)
-         in
-         Some (sita, implications)
+       solve_inequality_constraints
+              expand_count sita ~exists:binds ep ~premise ineq_cons
       )
-  )
+
 
 
 (* 結論からapplicationのtermを消し去りたい。 *)
 (* rDataはいらない、ということにしようとり会えず *)
 (* これ本当は、Seqを返すとするのが良いんだろうな。まずは動かしたいのであれだけど *)
 and solve_application:
-      int 
+      int
+      -> BaseLogic.t M.t
       -> exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
       -> premise:Premise.t
       -> Hfl.application
-      -> (BaseLogic.t M.t * (Hfl.horn list)) option
+      -> solution Seq.t
   =
-  (fun expand_count ~exists:binds ep ~premise ({head = head;_} as app) ->
+  (fun expand_count sita ~exists:binds ep ~premise ({head = head;_} as app) ->
     let head_sort = match Hfl.Equations.find_sort ep head with None -> assert false | Some sort -> sort in
     let app_terms_in_premise =
       List.filter_map
@@ -205,9 +217,9 @@ and solve_application:
           decompose_application_terms_implication_by_monotonicity head_sort premise_app app
         )
     in
-    List.find_map
-      ineq_constraints
-      ~f:(solve_equality_inequality_constraints expand_count ~exists:binds ep ~premise)
+    Seq.concat_map
+      (Seq.of_list ineq_constraints)
+      ~f:(solve_equality_inequality_constraints expand_count sita ~exists:binds ep ~premise)
   )
 
 and solve_application_by_expand:
@@ -220,36 +232,36 @@ and solve_application_by_expand:
       -> solution Seq.t =
   (fun expand_count sita ~exists:binds ep ~premise {head = head; args = arg_cs;_} ->
     Seq.concat_map
-      (Seq.singleton 1)         (* dummy *)
-   ~f:(fun _ -> 
-     match Hfl.Equations.find ep head with
-     |None -> assert false       
-     |Some (_, {params = params; args = args; body = qhorn}) ->
-       (assert (params = []));
-       (assert (List.length args = List.length arg_cs));
-       (* 引数の代入 *)
-       let qhorn = Hfl.subst_qhorn
-                     (M.add_list2 (List.map ~f:fst args) arg_cs M.empty)
-                     qhorn
-       in
-       (* toplevelのexists束縛を分離 *)
-       let exists, qhorn = Hfl.split_outside_exists qhorn in
-       (* exist束縛変数のfresh *)        
-       let exists' = List.map ~f:(fun (id,sort) ->Id.genid_from_id id, sort) exists in
-       let qhorn = List.fold2_exn
-                     exists
-                     exists'
-                     ~init:qhorn
-                     ~f:(fun acc (id,_) (id',_) -> Hfl.replace_qhorn id id' acc)
-       in
-       (match qhorn with
-        | `Horn (head_spec_pre, head_spec_result) ->
-           let binds = (exists':>(Id.t * Hfl.sort) list)@binds in
-           let premise = List.fold_right ~f:Premise.add ~init:premise head_spec_pre in
-           (* expand_count がincrementされるのはここのみ *)
-           eliminate_app sita (expand_count+1) ~exists:binds ep ~premise head_spec_result
-        | _ -> invalid_arg "solve_application_expand:not yet impl")
-   )
+      (Seq.singleton 1)         (* dummy:遅延させる為に *)
+      ~f:(fun _ -> 
+        match Hfl.Equations.find ep head with
+        |None -> assert false       
+        |Some (_, {params = params; args = args; body = qhorn}) ->
+          (assert (params = []));
+          (assert (List.length args = List.length arg_cs));
+          (* 引数の代入 *)
+          let qhorn = Hfl.subst_qhorn
+                        (M.add_list2 (List.map ~f:fst args) arg_cs M.empty)
+                        qhorn
+          in
+          (* toplevelのexists束縛を分離 *)
+          let exists, qhorn = Hfl.split_outside_exists qhorn in
+          (* exist束縛変数のfresh *)        
+          let exists' = List.map ~f:(fun (id,sort) ->Id.genid_from_id id, sort) exists in
+          let qhorn = List.fold2_exn
+                        exists
+                        exists'
+                        ~init:qhorn
+                        ~f:(fun acc (id,_) (id',_) -> Hfl.replace_qhorn id id' acc)
+          in
+          (match qhorn with
+           | `Horn (head_spec_pre, head_spec_result) ->
+              let binds = (exists':>(Id.t * Hfl.sort) list)@binds in
+              let premise = List.fold_right ~f:Premise.add ~init:premise head_spec_pre in
+              (* expand_count がincrementされるのはここのみ *)
+              eliminate_app  (expand_count+1) sita ~exists:binds ep ~premise head_spec_result
+           | _ -> invalid_arg "solve_application_expand:not yet impl")
+      )
   )
    
 and solve_application_expand_if_fail:
@@ -260,9 +272,9 @@ and solve_application_expand_if_fail:
       -> premise:Premise.t
       -> Hfl.application
       -> solution Seq.t =
-  (fun expand_count sita ~exists:binds ep ~premise ({head = head; args = arg_cs;_} as app) ->
+  (fun expand_count sita ~exists:binds ep ~premise app ->
     let direct_solutions:solution Seq.t =
-      solve_application expand_count ~exists:binds ep ~premise app in
+      solve_application expand_count sita ~exists:binds ep ~premise app in
    if expand_count >= expansion_max then
      direct_solutions
    else
@@ -283,123 +295,74 @@ and solve_application_list:
       -> solution Seq.t
   =
   (fun expand_count sita ~exists:binds ep ~premise apps ->
-    match apps with
-    |[] ->
-      Seq.singleton (sita, [])
-    |app::other ->
-      let solutions_of_app:solution Seq.t =
-        solve_application_expand_if_fail
-          expand_count sita ~exists:binds ep ~premise app
-      in
-      Seq.concat_map
-        solutions_of_app
-        ~f:(fun (sita, horn_list) ->
-          solve_application_list
-            expand_count sita ~exists:binds ep ~premise other
-          |> Seq.map
-               ~f:(fun (sita, horn_list_other) -> (sita, horn_list@horn_list_other)))
-        )
-
+    bind_solutions
+      sita apps
+      ~f:(fun sita app ->
+        solve_application_expand_if_fail expand_count sita ~exists:binds ep ~premise app)
+  )
 
   
 and eliminate_app_from_or_clause
-     expand_count ~exists:binds ep ~premise (`Or (c1,c2))
-    :(BaseLogic.t M.t * (Hfl.horn list)) option =
+     expand_count sita ~exists:binds ep ~premise (`Or (c1,c2))
+    :solution Seq.t =
   if not (Hfl.app_term_exist (`Or (c1, c2))) then
-    Some (M.empty, [`Horn ((Premise.show premise), (`Or (c1, c2)))])
+    Seq.singleton (M.empty, [`Horn ((Premise.show premise), (`Or (c1, c2)))])
   else
     let c_small, c_big =
       if Hfl.size c1 < Hfl.size c2 then c1, c2 else c2, c1
     in
-    match eliminate_app expand_count ~exists:binds ep ~premise c_small with
-    |None ->
-      eliminate_app expand_count ~exists:binds ep ~premise c_big
-    |Some (sita, horn_list) ->
-      let c_small_valid =
-        List.for_all
-          horn_list
-          ~f:(fun horn -> UseZ3.horn_to_z3_expr horn |> UseZ3.is_valid)
-      in
-      if c_small_valid then
-        Some (sita, [])
-      else
-        eliminate_app expand_count ~exists:binds ep ~premise c_big
+    Seq.append
+      (eliminate_app expand_count sita ~exists:binds ep ~premise c_small )
+      (eliminate_app expand_count sita ~exists:binds ep ~premise c_big )    
 
 
 and eliminate_app_from_or_clause_list
-      expand_count ~exists:binds ep ~premise or_clauses acc_sita acc_horn
-    :(BaseLogic.t M.t * (Hfl.horn list)) option  =
-  match or_clauses with
-  |[] ->
-    (* 最後に代入 *)
-    let acc_horn =
-      List.map
-      acc_horn
-      ~f:(subst_base_term_horn acc_sita)
-    in                     
-    Some (acc_sita, acc_horn)
-  |or_clause::other ->
-    (* acc_sitaの適用 *)
-    let or_clause = Hfl.subst_base_term acc_sita or_clause
-                    |> (function |`Or _ as or_term -> or_term | _ ->assert false)
-    in
-    (match eliminate_app_from_or_clause
-             expand_count ~exists:binds ep ~premise or_clause
-     with
-     |None -> None
-     |Some (sita', horns) ->
-       let acc_sita = M.union (fun _ -> assert false) acc_sita sita' in
-       let acc_horn = horns@acc_horn in
-       let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id acc_sita)) in
-       eliminate_app_from_or_clause_list
-         expand_count ~exists:binds ep ~premise other acc_sita acc_horn
-    )
+      expand_count sita ~exists:binds ep ~premise or_clauses 
+    :solution Seq.t  =
+  bind_solutions
+    sita
+    or_clauses
+    ~f:(fun sita or_clause ->
+      eliminate_app_from_or_clause
+             expand_count sita ~exists:binds ep ~premise or_clause)
 
 
-and eliminate_app expand_count ~exists:binds ep ~premise clause =
+and eliminate_app expand_count sita ~exists:binds ep ~premise clause =
   let toplevel_apps, other_clauses = separate_toplevel_apps clause in
-  match solve_application_list
-          expand_count ~exists:binds ep ~premise toplevel_apps M.empty []
-  with
-  |None -> None                 (* app-termがequality的に成立しない *)
-  |Some (sita, horn_list_from_app) ->
-    let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id sita)) in
-    let or_clauses_with_app_term, other_clauses =
-      List.partition_map
-        other_clauses
-        ~f:(function | (`Or _ as c) ->
-                        if Hfl.app_term_exist c then
-                          `Fst c  else `Snd c
-                     | (_ as c) -> `Snd c)
-    in
-    (match eliminate_app_from_or_clause_list
-             expand_count
-             ~exists:binds ep ~premise or_clauses_with_app_term M.empty []
-     with
-     |None -> None
-     |Some (sita', horns_from_or) ->
-       let sita = M.union (fun _ -> assert false) sita sita' in
-       (* sitaの適用 *)
-       let other_clauses_horn =
-         `Horn ((Premise.show premise), Hfl.concat_by_and other_clauses)
-         |> subst_base_term_horn sita
-       in
-       let horn_list_from_app =
-         List.map ~f:(subst_base_term_horn sita) horn_list_from_app
-       in
-       Some (sita, other_clauses_horn::(horn_list_from_app@horns_from_or)))
 
-
+  let or_clauses_with_app_term, other_clauses =
+    List.partition_map
+      other_clauses
+      ~f:(function | (`Or _ as c) ->
+                      if Hfl.app_term_exist c then
+                        `Fst c  else `Snd c
+                   | (_ as c) -> `Snd c)
+  in
+  bind_solutions
+    sita
+    [ `Toplevel_apps toplevel_apps;
+      `Or_clauses_with_app_term or_clauses_with_app_term;
+      `Other_clauses other_clauses]
+    ~f:(fun sita -> function
+         | `Toplevel_apps toplevel_apps ->
+                solve_application_list
+                  expand_count sita ~exists:binds ep ~premise toplevel_apps
+         | `Or_clauses_with_app_term or_clauses ->
+            eliminate_app_from_or_clause_list
+              expand_count sita
+              ~exists:binds ep ~premise or_clauses
+         | `Other_clauses clauses ->
+            Seq.singleton (sita, [`Horn ([], Hfl.concat_by_and clauses)] )
+       )
+            
 
     
-let f ~exists:binds ep penv clause =
+let f sita ~exists:binds ep penv clause =
   let premise = List.fold_right
                   ~f:Premise.add
                   (PathEnv.extract_condition penv)
                   ~init:Premise.empty
   in
-  eliminate_app 0 ~exists:binds ep ~premise clause
+  eliminate_app 0 sita ~exists:binds ep ~premise clause
 
-
-  
   
