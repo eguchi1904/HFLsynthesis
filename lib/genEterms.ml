@@ -482,6 +482,8 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
     let arity = List.length arg_sorts in
     if (arity +1 > size) then Seq.empty
     else
+
+      
       match split_arg_spec_return_prop ep penv head spec consistency_opt with
       |Some (arg_specs, ret_prop) ->
         assert (List.length arg_specs = List.length arg_sorts);

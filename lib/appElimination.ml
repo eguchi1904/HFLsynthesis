@@ -1,6 +1,8 @@
 module List = Base.List
 open List.Or_unequal_lengths
+module Seq = Base.Sequence
 
+type solution = BaseLogic.t M.t * (Hfl.horn list)
 let expansion_max = 1
 
 let subst_base_term_horn sita =
@@ -208,84 +210,96 @@ and solve_application:
       ~f:(solve_equality_inequality_constraints expand_count ~exists:binds ep ~premise)
   )
 
-and solve_application_expand_if_fail:
-      int 
+and solve_application_by_expand:
+      int
+      -> BaseLogic.t M.t  
       -> exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
       -> premise:Premise.t
       -> Hfl.application
-      -> (BaseLogic.t M.t * (Hfl.horn list)) option =
-  (fun expand_count ~exists:binds ep ~premise ({head = head; args = arg_cs;_} as app) ->
-    match solve_application expand_count ~exists:binds ep ~premise app with
-    |Some result -> Some result
-    |None -> 
-      if expand_count >= expansion_max then None
-      else
-        (* 展開してみる *)
-      match Hfl.Equations.find ep head with
-      |Some (_, {params = params; args = args; body = qhorn}) ->
-        (assert (params = []));
-        (assert (List.length args = List.length arg_cs));
-        (* 引数の代入 *)
-        let qhorn = Hfl.subst_qhorn
-                      (M.add_list2 (List.map ~f:fst args) arg_cs M.empty)
-                      qhorn
-        in
-        (* toplevelのexists束縛を分離 *)
-        let exists, qhorn = Hfl.split_outside_exists qhorn in
-        (* exist束縛変数のfresh *)        
-        let exists' = List.map ~f:(fun (id,sort) ->Id.genid_from_id id, sort) exists in
-        let qhorn = List.fold2_exn
-                      exists
-                      exists'
-                      ~init:qhorn
-                      ~f:(fun acc (id,_) (id',_) -> Hfl.replace_qhorn id id' acc)
-        in
-        (match qhorn with
-          | `Horn (head_spec_pre, head_spec_result) ->
+      -> solution Seq.t =
+  (fun expand_count sita ~exists:binds ep ~premise {head = head; args = arg_cs;_} ->
+    Seq.concat_map
+      (Seq.singleton 1)         (* dummy *)
+   ~f:(fun _ -> 
+     match Hfl.Equations.find ep head with
+     |None -> assert false       
+     |Some (_, {params = params; args = args; body = qhorn}) ->
+       (assert (params = []));
+       (assert (List.length args = List.length arg_cs));
+       (* 引数の代入 *)
+       let qhorn = Hfl.subst_qhorn
+                     (M.add_list2 (List.map ~f:fst args) arg_cs M.empty)
+                     qhorn
+       in
+       (* toplevelのexists束縛を分離 *)
+       let exists, qhorn = Hfl.split_outside_exists qhorn in
+       (* exist束縛変数のfresh *)        
+       let exists' = List.map ~f:(fun (id,sort) ->Id.genid_from_id id, sort) exists in
+       let qhorn = List.fold2_exn
+                     exists
+                     exists'
+                     ~init:qhorn
+                     ~f:(fun acc (id,_) (id',_) -> Hfl.replace_qhorn id id' acc)
+       in
+       (match qhorn with
+        | `Horn (head_spec_pre, head_spec_result) ->
            let binds = (exists':>(Id.t * Hfl.sort) list)@binds in
            let premise = List.fold_right ~f:Premise.add ~init:premise head_spec_pre in
            (* expand_count がincrementされるのはここのみ *)
-           eliminate_app (expand_count+1) ~exists:binds ep ~premise head_spec_result
-          | _ -> invalid_arg "solve_application_expand:not yet impl")
-      |None -> assert false
+           eliminate_app sita (expand_count+1) ~exists:binds ep ~premise head_spec_result
+        | _ -> invalid_arg "solve_application_expand:not yet impl")
+   )
+  )
+   
+and solve_application_expand_if_fail:
+      int
+      -> BaseLogic.t M.t  
+      -> exists:(Id.t * Hfl.sort) list
+      -> Hfl.Equations.t
+      -> premise:Premise.t
+      -> Hfl.application
+      -> solution Seq.t =
+  (fun expand_count sita ~exists:binds ep ~premise ({head = head; args = arg_cs;_} as app) ->
+    let direct_solutions:solution Seq.t =
+      solve_application expand_count ~exists:binds ep ~premise app in
+   if expand_count >= expansion_max then
+     direct_solutions
+   else
+     let expand_solutions =
+       solve_application_by_expand expand_count sita ~exists:binds ep ~premise app
+     in
+     Seq.append direct_solutions expand_solutions
   )
 
 
 and solve_application_list:
-      int 
+      int
+      -> BaseLogic.t M.t
       -> exists:(Id.t * Hfl.sort) list
       -> Hfl.Equations.t
       -> premise:Premise.t
       -> Hfl.application list
-      -> BaseLogic.t M.t
-      -> Hfl.horn list
-      -> (BaseLogic.t M.t * (Hfl.horn list)) option
+      -> solution Seq.t
   =
-  (fun expand_count ~exists:binds ep ~premise apps acc_sita acc_horn ->
+  (fun expand_count sita ~exists:binds ep ~premise apps ->
     match apps with
     |[] ->
-    let acc_horn =
-      List.map
-      acc_horn
-      ~f:(subst_base_term_horn acc_sita)
-    in                     
-      Some (acc_sita, acc_horn)
-    |{head = head; params= params; args = args}::other ->
-      (* sitaの適用 *)
-      let params = List.map ~f:(Hfl.subst_base_term_abs acc_sita) params in
-      let args = List.map ~f:(Hfl.subst_base_term acc_sita) args in
-      let app = Hfl.{head = head; params= params; args = args} in
-      (match solve_application_expand_if_fail expand_count ~exists:binds ep ~premise app with
-       |None -> None
-       |Some (sita', horns) ->
-         let acc_sita = M.union (fun _ -> assert false) acc_sita sita' in
-         let acc_horn = horns@acc_horn in
-         let binds = List.filter binds ~f:(fun (id, _) -> not (M.mem id acc_sita)) in
-         solve_application_list
-           expand_count ~exists:binds ep ~premise other acc_sita acc_horn
-      )
-  )
+      Seq.singleton (sita, [])
+    |app::other ->
+      let solutions_of_app:solution Seq.t =
+        solve_application_expand_if_fail
+          expand_count sita ~exists:binds ep ~premise app
+      in
+      Seq.concat_map
+        solutions_of_app
+        ~f:(fun (sita, horn_list) ->
+          solve_application_list
+            expand_count sita ~exists:binds ep ~premise other
+          |> Seq.map
+               ~f:(fun (sita, horn_list_other) -> (sita, horn_list@horn_list_other)))
+        )
+
 
   
 and eliminate_app_from_or_clause

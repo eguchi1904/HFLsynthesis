@@ -75,8 +75,41 @@ module TestSolveEquality = struct
            
 end
 
+module TestSeq = struct
+
+  module Seq = Base.Sequence
+             
+  let mk_seq1 () =
+    Seq.singleton
+      (let () = print_string "mk_element!\n" in
+       1)
+
+  let mk_seq2 () =
+    Seq.concat_map
+      (Seq.singleton 1)
+      ~f:(fun _ ->
+        let () = print_string "mk_element\n" in
+        Seq.singleton 1)
+
+  let f () =
+    let () = print_string "will make seq1\n" in
+    let seq1 = mk_seq1 () in
+    let () = print_string "will make seq2\n" in
+    let seq2 = mk_seq2 () in
+    let () = print_string "print seq1\n" in
+    let () = Seq.iter seq1 ~f:(fun i -> print_int i; print_newline ()) in
+    let () = print_string "print seq2\n" in
+    let () = Seq.iter seq2 ~f:(fun i -> print_int i; print_newline ()) in    
+    ()
+end
+    
+
+
+    
+  
                          
 let _ =
   let () = TestPolynomial.f () in
   let () =  TestSolveEquality.f () in
+  let () =  TestSeq.f () in  
   ()
