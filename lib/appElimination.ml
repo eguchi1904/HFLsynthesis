@@ -11,23 +11,59 @@ let subst_base_term_horn sita =
                  Hfl.subst_base_term sita c)
 
 
+let is_exists_free_horn sita ~exists (`Horn (cs, c)) =
+  let exists_vars =             (* sitaで割り当てらていない存在束縛された変数 *)
+    List.map exists ~f:fst
+    |> List.filter ~f:(fun x -> not (M.mem x sita))
+  in
+  List.for_all                  (* 全てのexists変数が、fv(c::cs)に出現しない *)
+    exists_vars
+    ~f:(fun x ->
+      List.for_all
+        (c::cs)
+        ~f:(fun c -> not (S.mem x (Hfl.fv c)))
+    )
+
+let rec pre_check_horns sita ~exists horns =
+  match horns with
+  |[] -> Some []
+  |horn::xs ->
+    if is_exists_free_horn sita ~exists horn then
+      let horn = subst_base_term_horn sita horn in
+      if UseZ3.horn_to_z3_expr horn |> UseZ3.is_valid then
+        pre_check_horns sita ~exists xs
+      else
+        None
+    else
+      (match pre_check_horns sita ~exists xs with
+       |None -> None
+       |Some horns -> Some (horn::horns))
+
+        
 (* 結果をandでまとめる *)
+(* この時に、T/Fが判定できるhornは先に判定する。この判定は良い感じに遅延される *)
 let rec bind_solutions
         :BaseLogic.t M.t
+         -> exists:(Id.t * Hfl.sort) list
          -> 'a list
          -> f:(BaseLogic.t M.t -> 'a -> solution Seq.t)
          -> solution Seq.t =
-  (fun sita l ~f ->
+  (fun sita ~exists l ~f ->
     match l with
     |[] -> Seq.singleton (sita, [])
     |x::xs ->
       let solution_of_x = f sita x in
       Seq.concat_map
         solution_of_x
-        ~f:(fun (sita, horn)
-            -> bind_solutions sita xs ~f
-               |> Seq.map
-                    ~f:(fun (sita, horn_xs) ->(sita, horn@horn_xs))
+        ~f:(fun (sita, horns) ->
+          match pre_check_horns sita ~exists horns with
+          |None -> Seq.empty
+          |Some [] ->
+            bind_solutions sita ~exists xs ~f
+          |Some horns -> 
+            bind_solutions sita ~exists xs ~f
+            |> Seq.map
+                 ~f:(fun (sita, horn_xs) ->(sita, horns@horn_xs))
         )
   )
                       
@@ -147,12 +183,18 @@ let rec solve_inequality_constraints:
       -> solution Seq.t = 
   (fun expand_count sita ~exists:binds ep ~premise ineq_cons ->
     bind_solutions
-      sita ineq_cons
+      sita ~exists:binds ineq_cons
       ~f:(fun sita (c1, c2) ->
         let premise' = Premise.add c1 premise in
         eliminate_app expand_count sita ~exists:binds ep ~premise:premise' c2
-      )
-  )
+        |> Seq.map
+             ~f:(fun (sita, horns) ->
+               sita, 
+               List.map
+                 horns
+                 ~f:(fun (`Horn (pre, c))-> `Horn (c1::pre, c))
+             )
+  ))
 
 (* solveするよりか、 eqだけといて制約たちを返す、という方がよっぽどの嬉しさがあるな。 *)
 (* そうしよう *)
@@ -296,7 +338,7 @@ and solve_application_list:
   =
   (fun expand_count sita ~exists:binds ep ~premise apps ->
     bind_solutions
-      sita apps
+      sita apps ~exists:binds
       ~f:(fun sita app ->
         solve_application_expand_if_fail expand_count sita ~exists:binds ep ~premise app)
   )
@@ -320,7 +362,7 @@ and eliminate_app_from_or_clause_list
       expand_count sita ~exists:binds ep ~premise or_clauses 
     :solution Seq.t  =
   bind_solutions
-    sita
+    sita ~exists:binds
     or_clauses
     ~f:(fun sita or_clause ->
       eliminate_app_from_or_clause
@@ -339,7 +381,7 @@ and eliminate_app expand_count sita ~exists:binds ep ~premise clause =
                    | (_ as c) -> `Snd c)
   in
   bind_solutions
-    sita
+    sita ~exists:binds
     [ `Toplevel_apps toplevel_apps;
       `Or_clauses_with_app_term or_clauses_with_app_term;
       `Other_clauses other_clauses]
