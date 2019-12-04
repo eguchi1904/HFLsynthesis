@@ -284,6 +284,41 @@ let exists_variable_occur_check (func_spec:Hfl.Equations.func_spec) =
         (Hfl.fv clause)
     )
     func_spec.argSpecs
+
+
+
+(* \Gamma |- f ?? ?? => spec 
+で、?? をexistsとして解いてみる。
+*)
+let pre_solve_app_term ep penv func_spec spec =
+  match (func_spec:Hfl.Equations.func_spec) with
+  | {fixOp = None; params = [];
+     exists = exists;
+     args = args; argSpecs = arg_specs;
+     retSpec = ret_spec} ->
+     let arg_qhorn = `Horn ([],
+                            List.map snd arg_specs
+                            |> Hfl.concat_by_and
+                           )
+     in
+     let ret_qhorns =
+       List.map
+         (fun spec_qhorn ->
+           Hfl.add_premise_qhorn [ret_spec] spec_qhorn)
+         spec
+     in
+     let exists = 
+     let cons = Constraint.make
+                  ep
+                  ~exists:args
+                  ~premise:(PathEnv.extract_condition penv)
+                  ~qhorns:(arg_qhorn::ret_qhorns)
+     in
+     Constraint.solve_exist cons
+   | _ -> invalid_arg "pre_solve_app_term: not impl"
+     
+     
+       
   
   
 (* 引数のrequireする仕様を構成
@@ -473,7 +508,34 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
     |_-> assert false
   )
   
-  (* do memo *)
+(* do memo *)
+
+and gen_app_term2:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list -> Hfl.clause list option
+                 -> int -> (Id.t * Hfl.funcSort)
+                 -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
+  (fun ctx ep penv abduction_candidate spec consistency_opt size (head,`FunS (arg_sorts, ret_sort))  ->
+    let ctx = Context.push_head head ctx in
+    let arity = List.length arg_sorts in
+    if (arity +1 > size) then Seq.empty
+    else
+      (match Hfl.Equations.extract_fun_spec ep head with
+       |Some {fixOp = None; params = [];
+              exists = exists;
+              args = args; argSpecs = arg_specs;
+              retSpec = ret_spec} ->
+         let cons = Constraint.make ep ~
+                  
+         
+
+      )
+  )
+        
+        
+
+
+
+    
+    
 and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.qhorn list -> Hfl.clause list option
                  -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 

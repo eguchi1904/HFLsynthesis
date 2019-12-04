@@ -382,6 +382,8 @@ type qhorn
     | `Forall of Id.t * baseSort * qhorn
     ]
 
+let fv_qhorn
+
 let rec qhorn_to_string (qhorn:qhorn) =
   match qhorn with
   | `Horn (pre_cs, c) ->

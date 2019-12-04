@@ -2,7 +2,7 @@ module List = Base.List
 open List.Or_unequal_lengths
 module Seq = Base.Sequence
 
-type solution = BaseLogic.t M.t * (Hfl.horn list)
+type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
 let expansion_max = 1
 
 let subst_base_term_horn sita =
@@ -42,6 +42,7 @@ let rec pre_check_horns sita ~exists horns =
         
 (* 結果をandでまとめる *)
 (* この時に、T/Fが判定できるhornは先に判定する。この判定は良い感じに遅延される *)
+(* existsは新たな差分を返す *)
 let rec bind_solutions
         :BaseLogic.t M.t
          -> exists:(Id.t * Hfl.sort) list
@@ -50,20 +51,20 @@ let rec bind_solutions
          -> solution Seq.t =
   (fun sita ~exists l ~f ->
     match l with
-    |[] -> Seq.singleton (sita, [])
+    |[] -> Seq.singleton (sita, [], []) (* 量化子は差分を返すので *)
     |x::xs ->
       let solution_of_x = f sita x in
       Seq.concat_map
         solution_of_x
-        ~f:(fun (sita, horns) ->
-          match pre_check_horns sita ~exists horns with
+        ~f:(fun (sita, exists_x, horns_x) ->
+          match pre_check_horns sita ~exists:(exists_x@exists) horns_x with
           |None -> Seq.empty
           |Some [] ->
             bind_solutions sita ~exists xs ~f
-          |Some horns -> 
+          |Some horns_x -> 
             bind_solutions sita ~exists xs ~f
             |> Seq.map
-                 ~f:(fun (sita, horn_xs) ->(sita, horns@horn_xs))
+                 ~f:(fun (sita, exists_xs, horn_xs) ->(sita, exists_x@exists_xs, horns_x@horn_xs))
         )
   )
                       
@@ -188,8 +189,9 @@ let rec solve_inequality_constraints:
         let premise' = Premise.add c1 premise in
         eliminate_app expand_count sita ~exists:binds ep ~premise:premise' c2
         |> Seq.map
-             ~f:(fun (sita, horns) ->
-               sita, 
+             ~f:(fun (sita, exists, horns) ->
+               sita,
+               exists, 
                List.map
                  horns
                  ~f:(fun (`Horn (pre, c))-> `Horn (c1::pre, c))
@@ -259,10 +261,23 @@ and solve_application:
           decompose_application_terms_implication_by_monotonicity head_sort premise_app app
         )
     in
-    Seq.concat_map
-      (Seq.of_list ineq_constraints)
-      ~f:(solve_equality_inequality_constraints expand_count sita ~exists:binds ep ~premise)
+    let solutions_for_ineq_constraints =
+        (Seq.concat_map
+           (Seq.of_list ineq_constraints)
+           ~f:(solve_equality_inequality_constraints expand_count sita ~exists:binds ep ~premise))
+    in
+    if S.exists                 (* appにexists束縛変数があるなら *)
+         (fun x -> List.mem (List.map ~f:fst binds) x ~equal:(=)
+                   && not (M.mem x sita))
+         (Hfl.fv (`App app))
+    then
+      Seq.append
+        solutions_for_ineq_constraints
+        (Seq.singleton (sita, [], [`Horn ([],(`App app))]))
+    else
+      solutions_for_ineq_constraints
   )
+  
 
 and solve_application_by_expand:
       int
@@ -290,6 +305,7 @@ and solve_application_by_expand:
           let exists, qhorn = Hfl.split_outside_exists qhorn in
           (* exist束縛変数のfresh *)        
           let exists' = List.map ~f:(fun (id,sort) ->Id.genid_from_id id, sort) exists in
+          let exists' = (exists' :> (Id.t * Hfl.sort) list) in
           let qhorn = List.fold2_exn
                         exists
                         exists'
@@ -298,10 +314,12 @@ and solve_application_by_expand:
           in
           (match qhorn with
            | `Horn (head_spec_pre, head_spec_result) ->
-              let binds = (exists':>(Id.t * Hfl.sort) list)@binds in
+              let binds = exists'@binds in
               let premise = List.fold_right ~f:Premise.add ~init:premise head_spec_pre in
               (* expand_count がincrementされるのはここのみ *)
               eliminate_app  (expand_count+1) sita ~exists:binds ep ~premise head_spec_result
+              |> Seq.map        (* 展開で出てきた新規のexists'を追加する、existsが追加されるのはここのみ *)
+                   ~f:(fun (sita, exists, horns) -> (sita, (exists'@exists), horns))
            | _ -> invalid_arg "solve_application_expand:not yet impl")
       )
   )
@@ -348,7 +366,7 @@ and eliminate_app_from_or_clause
      expand_count sita ~exists:binds ep ~premise (`Or (c1,c2))
     :solution Seq.t =
   if not (Hfl.app_term_exist (`Or (c1, c2))) then
-    Seq.singleton (M.empty, [`Horn ((Premise.show premise), (`Or (c1, c2)))])
+    Seq.singleton (M.empty, [], [`Horn ((Premise.show premise), (`Or (c1, c2)))])
   else
     let c_small, c_big =
       if Hfl.size c1 < Hfl.size c2 then c1, c2 else c2, c1
@@ -394,17 +412,22 @@ and eliminate_app expand_count sita ~exists:binds ep ~premise clause =
               expand_count sita
               ~exists:binds ep ~premise or_clauses
          | `Other_clauses clauses ->
-            Seq.singleton (sita, [`Horn ([], Hfl.concat_by_and clauses)] )
+            Seq.singleton (sita, [], [`Horn ([], Hfl.concat_by_and clauses)] )
        )
             
 
     
-let f sita ~exists:binds ep penv clause =
+let f sita ~exists:binds ep premise_clauses clause =
   let premise = List.fold_right
                   ~f:Premise.add
-                  (PathEnv.extract_condition penv)
+                  premise_clauses
                   ~init:Premise.empty
   in
   eliminate_app 0 sita ~exists:binds ep ~premise clause
+  |> Seq.concat_map
+       ~f:(fun (sita, new_exists, horns) ->
+         match pre_check_horns sita ~exists:(new_exists@binds) horns with
+         |None -> Seq.empty
+         |Some horns -> Seq.singleton (sita, new_exists, horns))
 
   

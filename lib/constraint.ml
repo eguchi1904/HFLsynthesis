@@ -1,8 +1,14 @@
 open Printf
 
-type t = Hfl.Equations.t * Hfl.clause list * Hfl.qhorn list
+type t =
+  {equations:Hfl.Equations.t;
+   exists: (Id.t * Hfl.sort) list;
+   sharedPremise: Hfl.clause list;
+   qhorns:Hfl.qhorn list
+  }
+  
 
-let to_string ((_, shared_premise, qhorn_list):t) =
+let to_string ({sharedPremise = shared_premise; qhorns = qhorn_list;_}:t) =
   let shared_premise_str =
     List.map Hfl.clause_to_string shared_premise
     |> String.concat " ;"
@@ -30,22 +36,13 @@ let separate_forall qhorn =
        
 let make
       (ep:Hfl.Equations.t)
-      (penv:PathEnv.t)
-      ~prop:(prop:[`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list])
-      ~spec:(spec: Hfl.qhorn list)
+      ~exists ~premise ~qhorns
   : t
   =
-  let `Exists (_, prop_clauses) = prop in
-  let penv_clauses = PathEnv.extract_condition penv in
-  let shared_premise = prop_clauses@penv_clauses in
-  let qhorn_list =
-    List.map
-      (fun spec_qhorn ->
-        let _, pre, res = separate_forall spec_qhorn in
-        `Horn (pre, res))
-      spec
-  in
-  ep, shared_premise, qhorn_list
+  {equations = ep;
+   exists = exists;
+   sharedPremise = premise;
+   qhorns = qhorns}
 
 
 
@@ -83,9 +80,6 @@ let extract_necessary_clauses vars cs =
   let vars = extract_related_var vars cs in
   List.filter (fun c -> (not (S.is_empty (S.inter vars (Hfl.fv c))))) cs
      
-
-
-  
   
 let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
   match qhorn with
@@ -115,13 +109,13 @@ let is_valid (ep, shared_premise, qhorn_list) =
   
 
 
-let subst map ((ep, shared_premise, qhorn_list):t) :t=
-  let shared_premise' = List.map (Hfl.subst map) shared_premise in
-  let qhorn_list' =
-    List.map
-      (Hfl.subst_qhorn map)
-      (qhorn_list :> Hfl.qhorn list) in
-  (ep, shared_premise', qhorn_list')  
+(* let subst map ((ep, shared_premise, qhorn_list):t) :t= *)
+(*   let shared_premise' = List.map (Hfl.subst map) shared_premise in *)
+(*   let qhorn_list' = *)
+(*     List.map *)
+(*       (Hfl.subst_qhorn map) *)
+(*       (qhorn_list :> Hfl.qhorn list) in *)
+(*   (ep, shared_premise', qhorn_list')   *)
 (* \exists arg. cons をsplitするイメーz
 中身未実装
  *)
@@ -133,9 +127,10 @@ let swap_value_var x v' clause =
 let swap_value_var_qhorn x v' qhorn =
   Hfl.replace_qhorn Id.valueVar_id v' qhorn
   |>  Hfl.replace_qhorn x Id.valueVar_id
+
   
-  
-let top:Hfl.clause = Hfl.top `BoolS 
+let top:Hfl.clause = Hfl.top `BoolS
+                   
 let rec mk_arg_spec (arg:(Id.t * Hfl.sort) list)
                     shared_premise qhorn_list =
   match arg with
@@ -158,10 +153,50 @@ let split (arg:(Id.t * Hfl.sort) list) (cons:t) =
   in
   (ep, shared_premise, []), arg_specs
 
-let solve (params:(Id.t * Hfl.abstSort) list) ((ep, shared_premise, qhorn_list):t) =
-  match params with
-  |[] -> M.empty
-  |_::_ -> invalid_arg "not impl yet"
+let mk_
+
+let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
+  AppElimination.f sita ~exists ep (premise@shared_premise) result
+  
+  
+  
+let solve {exists = exists; sharedPremise = premise; qhorns = qhorns;equations = ep} =
+  let exists_qhorns, horns =
+    List.fold_right
+      (fun qhorn (acc_exists, acc_horn) ->
+        let qhorn_exists, qhorn = Hfl.split_outside_exists qhorn in
+        let qhorn_exists:> (Id.t * Hfl.sort) list = qhorn_exists in
+        let _, pre, result = separate_forall qhorn in
+        (qhorn_exists@acc_exists, (`Horn (pre, result))::acc_horn))
+      qhorns
+      ([], [])
+  in
+  let exists_sum = (exists@exists_qhorns) in
+  let solutions =
+    AppElimination.bind_solutions
+      M.empty
+      ~exists:exists_sum
+      horns
+      ~f:(fun sita horn -> solve_horn sita ~exists ep premise horn)
+  in
+  Base.Sequence.map
+    solutions
+    ~f:(fun (sita, horns) ->
+      let exists_sum = List.filter (fun (x,_) -> not (M.mem x sita)) exists_sum in
+      
+      (sita, exists_sum, horns)
+    )
+      
+      
+      
+      
+  
+  
+  
+  
+  
+
+
 
 
          
