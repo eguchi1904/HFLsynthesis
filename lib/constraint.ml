@@ -4,18 +4,18 @@ type t =
   {equations:Hfl.Equations.t;
    exists: (Id.t * Hfl.sort) list;
    sharedPremise: Hfl.clause list;
-   qhorns:Hfl.qhorn list
+   horns:Hfl.horn list
   }
   
 
-let to_string ({sharedPremise = shared_premise; qhorns = qhorn_list;_}:t) =
+let to_string ({sharedPremise = shared_premise; horns = horn_list;_}:t) =
   let shared_premise_str =
     List.map Hfl.clause_to_string shared_premise
     |> String.concat " ;"
   in
   let indent = String.make (4+(String.length shared_premise_str)) ' ' in
   let qhorn_list_str =
-    List.map Hfl.qhorn_to_string qhorn_list
+    List.map Hfl.qhorn_to_string (horn_list:> Hfl.qhorn list)
     |> String.concat (indent^"\n")
   in
   "["^shared_premise_str^"] * ["^qhorn_list_str^"    \n]"
@@ -36,17 +36,14 @@ let separate_forall qhorn =
        
 let make
       (ep:Hfl.Equations.t)
-      ~exists ~premise ~qhorns
+      ~exists ~premise ~horns
   : t
   =
   {equations = ep;
    exists = exists;
    sharedPremise = premise;
-   qhorns = qhorns}
+   horns = horns}
 
-
-
-  
 let rec extract_related_var' vars = function
   | c :: lest ->
      let c_fv = Hfl.fv c in
@@ -104,8 +101,8 @@ let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
      
              
 (* 適宜拡張していこう。まずは超単純なもののみ *)
-let is_valid (ep, shared_premise, qhorn_list) =
-  List.for_all (is_valid_horn shared_premise) qhorn_list
+(* let is_valid (ep, shared_premise, qhorn_list) = *)
+(*   List.for_all (is_valid_horn shared_premise) qhorn_list *)
   
 
 
@@ -115,7 +112,7 @@ let is_valid (ep, shared_premise, qhorn_list) =
 (*     List.map *)
 (*       (Hfl.subst_qhorn map) *)
 (*       (qhorn_list :> Hfl.qhorn list) in *)
-(*   (ep, shared_premise', qhorn_list')   *)
+(*   (ep, shared_premise', qhorn_list') *)
 (* \exists arg. cons をsplitするイメーz
 中身未実装
  *)
@@ -131,60 +128,102 @@ let swap_value_var_qhorn x v' qhorn =
   
 let top:Hfl.clause = Hfl.top `BoolS
                    
-let rec mk_arg_spec (arg:(Id.t * Hfl.sort) list)
-                    shared_premise qhorn_list =
-  match arg with
-  |[] -> invalid_arg "mk_arg_spec"
-  |[(id, sort)] ->
-    let open BaseLogic in
-    [id,List.map
-         (Hfl.add_premise_qhorn shared_premise)
-         qhorn_list]
-  |(id,sort)::lest ->
-    (id, [])                    
-    ::(mk_arg_spec lest shared_premise qhorn_list)
+(* let rec mk_arg_spec (arg:(Id.t * Hfl.sort) list) *)
+(*                     shared_premise qhorn_list = *)
+(*   match arg with *)
+(*   |[] -> invalid_arg "mk_arg_spec" *)
+(*   |[(id, sort)] -> *)
+(*     let open BaseLogic in *)
+(*     [id,List.map *)
+(*          (Hfl.add_premise_qhorn shared_premise) *)
+(*          qhorn_list] *)
+(*   |(id,sort)::lest -> *)
+(*     (id, [])                     *)
+(*     ::(mk_arg_spec lest shared_premise qhorn_list) *)
     
                 
     
-let split (arg:(Id.t * Hfl.sort) list) (cons:t) =
-  let (ep, shared_premise, qhorn_list) = cons in
-  let arg_specs: (Id.t * Hfl.qhorn list) list =
-    mk_arg_spec arg shared_premise qhorn_list
+(* let split (arg:(Id.t * Hfl.sort) list) (cons:t) = *)
+(*   let (ep, shared_premise, qhorn_list) = cons in *)
+(*   let arg_specs: (Id.t * Hfl.qhorn list) list = *)
+(*     mk_arg_spec arg shared_premise qhorn_list *)
+(*   in *)
+(*   (ep, shared_premise, []), arg_specs *)
+
+
+
+
+  
+let distribute_horn_to_exists_var' ~exists horns =
+  let exists_horns, remain =
+    List.fold_right
+      (fun (x, sort) (acc_result, remain_horns) ->
+        let horns_with_x, horns_without_x =
+          List.partition
+            (fun horn -> S.mem x (Hfl.fv_horn horn))
+            remain_horns
+        in
+        ((x, sort, horns_with_x)::acc_result, horns_without_x))
+      exists
+      ([], horns)
   in
-  (ep, shared_premise, []), arg_specs
-
-let mk_
-
+  if remain <> [] then assert false (*existsないならcheckしてるはず *)
+  else
+    exists_horns
+    
+      
+let distribute_horn_to_exists_var ~exists horns
+    :(Id.t * Hfl.sort * (Hfl.horn list)) list =
+  let horns =                   (* 出来るだけ別ける *)
+    List.map
+      (fun (`Horn (cs, c)) ->
+            List.map
+              (fun c' -> (`Horn (cs, c')))
+              (Hfl.separate_by_and c)
+      )
+      horns
+    |> List.concat
+  in
+  distribute_horn_to_exists_var' ~exists horns
+  
+      
+      
 let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
   AppElimination.f sita ~exists ep (premise@shared_premise) result
   
   
   
-let solve {exists = exists; sharedPremise = premise; qhorns = qhorns;equations = ep} =
-  let exists_qhorns, horns =
-    List.fold_right
-      (fun qhorn (acc_exists, acc_horn) ->
-        let qhorn_exists, qhorn = Hfl.split_outside_exists qhorn in
-        let qhorn_exists:> (Id.t * Hfl.sort) list = qhorn_exists in
-        let _, pre, result = separate_forall qhorn in
-        (qhorn_exists@acc_exists, (`Horn (pre, result))::acc_horn))
-      qhorns
-      ([], [])
-  in
-  let exists_sum = (exists@exists_qhorns) in
+let solve {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
+  (* let exists_qhorns, horns = *)
+  (*   List.fold_right *)
+  (*     (fun qhorn (acc_exists, acc_horn) -> *)
+  (*       let qhorn_exists, qhorn = Hfl.split_outside_exists qhorn in *)
+  (*       let qhorn_exists:> (Id.t * Hfl.sort) list = qhorn_exists in *)
+  (*       let _, pre, result = separate_forall qhorn in *)
+  (*       (qhorn_exists@acc_exists, (`Horn (pre, result))::acc_horn)) *)
+  (*     qhorns *)
+  (*     ([], []) *)
+  (* in *)
   let solutions =
     AppElimination.bind_solutions
       M.empty
-      ~exists:exists_sum
+      ~exists
       horns
       ~f:(fun sita horn -> solve_horn sita ~exists ep premise horn)
   in
   Base.Sequence.map
     solutions
-    ~f:(fun (sita, horns) ->
-      let exists_sum = List.filter (fun (x,_) -> not (M.mem x sita)) exists_sum in
-      
-      (sita, exists_sum, horns)
+    ~f:(fun (sita, new_exists, horns) ->
+      let exists_sum =
+        List.filter
+          (fun (x,_) -> not (M.mem x sita))
+          (new_exists@exists)
+      in
+      let exists_horns =
+        distribute_horn_to_exists_var
+          ~exists:exists_sum horns
+      in
+      (sita, exists_horns)
     )
       
       

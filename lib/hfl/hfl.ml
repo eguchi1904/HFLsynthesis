@@ -375,6 +375,13 @@ let rec clause_to_base (c:clause) =
 
 
 type horn =  [ `Horn of clause list * clause ]
+
+let fv_horn (`Horn (cs , c)) =
+  List.fold_left
+    (fun acc c -> S.union acc (fv c))
+    (fv c)
+    cs
+  
   
 type qhorn 
   = [ horn
@@ -382,7 +389,7 @@ type qhorn
     | `Forall of Id.t * baseSort * qhorn
     ]
 
-let fv_qhorn
+
 
 let rec qhorn_to_string (qhorn:qhorn) =
   match qhorn with

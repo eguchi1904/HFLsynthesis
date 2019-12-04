@@ -428,6 +428,9 @@ let f sita ~exists:binds ep premise_clauses clause =
        ~f:(fun (sita, new_exists, horns) ->
          match pre_check_horns sita ~exists:(new_exists@binds) horns with
          |None -> Seq.empty
-         |Some horns -> Seq.singleton (sita, new_exists, horns))
+         |Some horns ->
+           let horns =          (* sitaを反映してから返す *)
+             List.map ~f:(subst_base_term_horn sita) horns in
+           Seq.singleton (sita, new_exists, horns))
 
   

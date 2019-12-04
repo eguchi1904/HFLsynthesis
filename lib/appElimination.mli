@@ -1,5 +1,6 @@
-type solution = BaseLogic.t M.t * (Hfl.horn list)
-  
+type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
+
+(* かえり値はsitaが反映されたhorn *)
 val f:
   BaseLogic.t M.t 
   ->exists:(Id.t * Hfl.sort) list 
