@@ -101,8 +101,7 @@ let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
      
              
 (* 適宜拡張していこう。まずは超単純なもののみ *)
-(* let is_valid (ep, shared_premise, qhorn_list) = *)
-(*   List.for_all (is_valid_horn shared_premise) qhorn_list *)
+
   
 
 
@@ -229,6 +228,12 @@ let solve {exists = exists; sharedPremise = premise; horns = horns;equations = e
       
       
       
+let is_valid t =
+  match Base.Sequence.hd (solve t) with
+  |None -> false
+  |Some (_, []) -> true
+  |Some _ -> false              (* 保守的に *)
+  
   
   
   

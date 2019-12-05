@@ -416,9 +416,13 @@ let rec split_outside_exists (qhorn:qhorn) =
 
 (* type existsHorn = [`Exists of Id.t * baseSort * existsHorn] *)
 
+let replace_horn x y (horn:horn) :horn=
+  let `Horn (cs, c) = horn in
+  `Horn (List.map (replace x y) cs, replace x y c)
+
 let rec replace_qhorn x y (qhorn:qhorn) :qhorn=
   match qhorn with
-  | `Horn (cs, c) -> `Horn (List.map (replace x y) cs, replace x y c)
+  | `Horn _ as horn -> (replace_horn x y horn:> qhorn)
   | `Exists (id, sort, qhorn') -> `Exists (id, sort, replace_qhorn x y qhorn')
   | `Forall (id, sort, qhorn') -> `Forall (id, sort, replace_qhorn x y qhorn')
 

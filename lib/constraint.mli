@@ -11,8 +11,8 @@ val make:
 val solve: t ->
 (BaseLogic.t M.t * (Id.t * Hfl.sort * Hfl.horn list) list) Base.Sequence.t  
 
-
-(* val is_valid: t -> bool *)
+(* 保守的に、 *)
+val is_valid: t -> bool
 
 (* val split: (Id.t * Hfl.sort) list -> t -> t * (Id.t * (Hfl.qhorn list)) list *)
 
