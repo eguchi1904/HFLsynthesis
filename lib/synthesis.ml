@@ -146,7 +146,7 @@ let generator data_env qualifiers e_max_size =
                    sort ~spec
                  in
                  let open Program in
-                 Some (PMatch ({head = x; args = []},
+                 Some (PMatch (App {head = x; args = []},
                                scon_case::other_cases)
                       )
                |None ->

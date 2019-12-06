@@ -176,7 +176,7 @@ let align_by_arg: Id.t list -> Hfl.clause -> Hfl.clause list =
 
 
   
-
+(* ここで、`Hornしか生成されえないのを変える必要がある訳だな *)
 let mk_fhorn (pmap: predicateDef M.t) (predicate_def:predicateDef) :Hfl.fhorn=
   let params, args = separate_params predicate_def.args in  
   match predicate_def.body with

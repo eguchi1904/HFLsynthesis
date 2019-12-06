@@ -8,7 +8,7 @@ type t =
   }
   
 
-let to_string ({sharedPremise = shared_premise; horns = horn_list;_}:t) =
+let to_string ({exists = exists; sharedPremise = shared_premise; horns = horn_list;_}:t) =
   let shared_premise_str =
     List.map Hfl.clause_to_string shared_premise
     |> String.concat " ;"
@@ -18,7 +18,10 @@ let to_string ({sharedPremise = shared_premise; horns = horn_list;_}:t) =
     List.map Hfl.qhorn_to_string (horn_list:> Hfl.qhorn list)
     |> String.concat (indent^"\n")
   in
-  "["^shared_premise_str^"] * ["^qhorn_list_str^"    \n]"
+  let exists_str = List.map (fun (x, _) -> Id.to_string_readable x) exists
+                   |> String.concat "."
+  in
+  "∃"^exists_str^"["^shared_premise_str^"] * ["^qhorn_list_str^"    \n]"
   
   
        

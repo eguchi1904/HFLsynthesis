@@ -122,7 +122,7 @@ end = struct
 
   
   let log_cha = open_out "eterm_search.log"
-  let log_trial ctx abduction_candi path_env  var cons  =
+  let log_trial ctx abduction_candi path_env var cons  =
     (incr iteration_count);
     Printf.fprintf
       log_cha
@@ -370,7 +370,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
         in
         (* terms_seq_seqを結合する *)
         SSeq.concat
-          terms_seq_seq
+          terms_seq_seq ~min_size:arg_num
     )
 
 and consist_up_prop_from_args_up_prop
@@ -478,7 +478,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                         head head_spec sita gen_instances abduction_candidate
              ))
            |>
-             SSeq.concat
+             SSeq.concat ~min_size:(arity +1)
            
        |_ -> assert false
       )
@@ -518,7 +518,12 @@ and f ctx ep penv abduction_candidate spec size =
 
 
     
-let f ep penv abduction_candidate horns sort max_size =
+let f ep penv abduction_candidate sort qhorns max_size =
+  let horns =
+    List.map (function | `Horn _ as horns -> horns
+                       | _ -> invalid_arg "genEterm: quantifyer not support")
+             qhorns
+  in
   let spec = Spec.{sort = sort;valid = horns; sat = None } in
   (* let () = Memo.clear memo in   *)
   
