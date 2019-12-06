@@ -28,59 +28,88 @@ end
 
                     
 (* for debug and memorization: specify the position of e-term *)
+(* push_argはidと一緒に入れて、それで場所を管理しよう *)
 module Context:sig
   type t
 
   val empty: t
 
-  val push_arg: Program.e -> t -> t
+  val push_goal: Id.t -> t -> t
+    
+  val push_arg: Id.t -> Program.e -> t -> t
 
-  val push_head: Id.t -> t -> t
+  val push_head: Id.t -> Id.t list -> t -> t
 
   val to_string: t -> string
 
 end = struct
 
-  type t = (Id.t * Program.e list) list
+
+  type frame = {head:Id.t;
+                formalArgs: Id.t list;
+                realArgs: (Id.t * Program.e) list
+               }
+             
+  type t = [`Goal of Id.t| `Frame of  frame] list 
         
   let empty = []
+
+  let push_goal x t =
+    (`Goal x)::t
             
-  let push_arg e t =
+  let push_arg x e t =
     match t with
-    |(head, args)::other ->
-      (head, e::args)::other
-    |[] -> assert false
+    |(`Frame {head = head;
+              formalArgs = formal_args;
+             realArgs = real_args})
+     ::other ->
+      (`Frame {head = head;
+              formalArgs = formal_args;
+              realArgs = (x, e)::real_args})
+      ::other
+    |`Goal _ :: _ -> assert false (* goal not set *)
+    |[] -> assert false 
 
-  let push_head head t =
-    (head, [])::t
+         
+  let push_head head arg_ids t =
+    (`Frame {head = head; formalArgs = arg_ids; realArgs =[]})::t
 
-  let to_string_elm (head, rev_args) = 
-    let args_str =
-      List.fold_left
-        (fun acc e ->
-          (match e with
-          |Program.App {args = [];_} -> 
-            (Program.to_string_e e)^" "^acc
-          |_ ->
-            "("^(Program.to_string_e e)^") "^acc))
-        ""        
-        rev_args
+
+
+  let frame_to_string {head = head;
+                       formalArgs = formal_args;
+                       realArgs = real_args}  =
+    let arg_str_list =
+      List.map
+        (fun x ->
+          match List.assoc_opt x real_args with
+          |Some e ->
+            (match e with
+             |Program.App {args = [];_} -> 
+               (Program.to_string_e e)
+             |_ ->
+               "("^(Program.to_string_e e)^")"
+            )
+          |None -> "?"^(Id.to_string_readable x)
+        )
+        formal_args
     in
-    (Id.to_string_readable head)^" "^args_str
+    (Id.to_string_readable head)
+    ^" "^(String.concat " " arg_str_list)
+    
+  let rec to_string' t i =
+    let indent = String.make i ' ' in    
+    match t with
+    | (`Goal x) ::other ->
+       indent^""^(Id.to_string_readable x)^"->\n"
+       ^(to_string' other (i+4))
+    | (`Frame frame) :: other ->
+       indent^(frame_to_string frame)^"\n"
+       ^(to_string' other (i+2))
+    | [] -> ""
 
-
-  let to_string t =
-    let pos = (if t = [] then  "??"
-               else
-                 List.fold_left
-                   (fun acc elm ->
-                     if acc = "" then (to_string_elm elm)^"??"
-                     else
-                       (to_string_elm elm)^"("^acc^")")
-                   ""
-                   t)
-    in
-    ">>:"^pos^"\n"
+  let to_string t = to_string' t 0
+       
 end
 
 module Log:sig
@@ -317,7 +346,8 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
         let x_size_max = size_sum - (arg_num -1) in (* >= 1 *)
         let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
           (* ここではseq *)
-          f ctx ep penv abduction_candidate x_spec x_size_max |> SSeq.to_seq
+          f (Context.push_goal x ctx)
+            ep penv abduction_candidate x_spec x_size_max |> SSeq.to_seq
         in
         let terms_seq_seq =
           Seq.map
@@ -328,7 +358,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
                 List.map (Hfl.replace Id.valueVar_id x) clauses
               in
               let penv' = PathEnv.add_condition_list ex_conds penv in
-              let ctx = Context.push_arg ex ctx in
+              let ctx = Context.push_arg x ex ctx in
               gen_args
                 ctx ep penv' abduction_candidate lest_specs
                 (size_sum - ex_size)
@@ -399,7 +429,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                  -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) SSeq.t = 
   (fun ctx ep penv abduction_candidate spec size (head,`FunS (arg_sorts, _))  ->
-    let ctx = Context.push_head head ctx in
+
     let arity = List.length arg_sorts in
     if (arity +1 > size) then SSeq.empty
     else
@@ -411,6 +441,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
          if not (exists_variable_occur_check head_spec) then
            invalid_arg "split_arg_spec_return_prop:exists variable occur in arg "
          else
+           let ctx = Context.push_head head (List.map fst args) ctx in
            let spec_horns =
              List.map (fun (`Horn (cs, c)) -> `Horn (ret_spec::cs, c)) spec.valid
            in
@@ -430,8 +461,14 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                let exists_var_specs =
                  mk_arg_specs exists_horns head
                in
+               let generate_args_num =
+                 M.filter (fun x _ -> List.mem_assoc x args) sita
+                 |> M.cardinal
+               in
                let exists_var_instances =
-                 gen_args ctx ep penv abduction_candidate exists_var_specs (size - 1)
+                 gen_args
+                   ctx ep penv abduction_candidate exists_var_specs
+                   (size - generate_args_num)
                in
                SSeq.map
                  exists_var_instances
@@ -490,6 +527,9 @@ let f ep penv abduction_candidate horns sort max_size =
       (AbductionCandidate.strengthen abduction_candidate)
       abduction_candidate
   in
+  let top_ctx =
+    Context.empty
+    |> Context.push_goal (Id.genid_const "toplevel") in
   (* for size = 1 to max_size do *)
   (*   Memo.remove Context.empty size memo *)
   (* done; *)
@@ -497,7 +537,7 @@ let f ep penv abduction_candidate horns sort max_size =
     abduction_candidates_sequence
     ~f:(fun abduction_candidate ->
       let () = Log.log_abduction abduction_candidate in
-      f (Context.empty) ep penv abduction_candidate spec max_size
+      f top_ctx ep penv abduction_candidate spec max_size
       |> SSeq.to_seq
     )
 
