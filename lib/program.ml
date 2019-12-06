@@ -1,4 +1,5 @@
-type e = {head: Id.t;  args: e list}
+type e = |App of {head: Id.t;  args: e list}
+         |Formula of BaseLogic.t
 
 type condition = |ETermCond of e
                  |PredCond of BaseLogic.t
@@ -14,20 +15,34 @@ type b =
 type t =
   |PRecFun of Id.t * ((Id.t * Hfl.sort) list) * b
 
+let rec size_e = function
+  |Formula _ -> 1
+  |App {head = _; args = args} ->
+    let args_size =
+      List.fold_left
+        (fun acc_size arg -> acc_size + (size_e arg))
+        0
+        args
+    in
+ args_size + 1
+      
 
-let rec to_string_e {head = head; args = args} =
-  let args_str =
-    args
-    |> List.map
-         (fun ({head = arg_head; args = arg_args} as arg)->
-           if arg_args = [] then
-             (Id.to_string_readable arg_head)
-           else
-             "("^(to_string_e arg)^")")
+let rec to_string_e e =
+  match e with
+  |Formula formula -> BaseLogic.p2string formula
+  |App {head = head; args = args} -> 
+    let args_str =
+      args
+      |> List.map
+           (function
+            |App {head = arg_head; args = []} ->
+              (Id.to_string_readable arg_head)
+            | arg -> 
+               "("^(to_string_e arg)^")")
 
-    |> String.concat " "
-  in
-  (Id.to_string_readable head)^" "^args_str
+      |> String.concat " "
+    in
+    (Id.to_string_readable head)^" "^args_str
 
 let to_string_cond = function
   |ETermCond e -> to_string_e e
@@ -79,3 +94,5 @@ let to_string = function
     ^(to_string_b 2 body)
     
               
+
+    

@@ -41,11 +41,7 @@ let generator ~size_max =
 
 
   let to_seq t =
-    Seq.fold
-    ~init:Seq.empty
-     ~f: (fun acc seq -> Seq.append acc seq)
-     t
-
+    Seq.concat t
     
              
   let rec append t1 t2 =
@@ -85,25 +81,26 @@ let generator ~size_max =
             (i+1, t_elm))
 
  
-  (* 遅延したいという熱い想いが... *) 
+  (* 頑張ろうな *)
   let concat (t_seq:'a t Seq.t)  =
     Seq.unfold
-      ~init:t_seq
-      ~f:(fun t_seq ->
-        let heads_tl_seq = 
-          Seq.concat_map
-            t_seq
-            ~f:(fun t ->
-              match Seq.next t with
-              |None -> Seq.empty |Some (head_seq, remain) ->
-                                   Seq.singleton (head_seq,remain))
-        in
-        let heads_seq, tls_seq =
-          (Seq.map heads_tl_seq ~f:fst), (Seq.map heads_tl_seq ~f:snd)
-        in
-        Some (Seq.concat heads_seq, tls_seq))
-                                            
-        
+      ~init:(1, t_seq)
+      ~f:(fun (i, t_seq) ->
+        if i > size_max then None
+        else
+          let heads_tl_seq = 
+            Seq.concat_map
+              t_seq
+              ~f:(fun t ->
+                match Seq.next t with
+                |None -> Seq.empty |Some (head_seq, remain) ->
+                                     Seq.singleton (head_seq,remain))
+          in
+          let heads_seq, tls_seq =
+            (Seq.map heads_tl_seq ~f:fst), (Seq.map heads_tl_seq ~f:snd)
+          in
+          Some (Seq.concat heads_seq, ((i+1), tls_seq)))
+
                     
   let map t ~f ~size_diff:added_size =
     assert (added_size >= 0);
