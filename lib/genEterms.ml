@@ -27,84 +27,6 @@ end = struct
 end
 
 
-module SortedSeq:
-sig
-
-  type 'a t
-
-  val empty: 'a t
-
-  val to_seq: 'a t -> 'a Seq.t
-
-  val append_sequence: 'a Seq.t -> size:int -> 'a t -> 'a t
-
-  val append: 'a t -> 'a t -> 'a t
-
-  val map: 'a t -> f:('a -> 'b) -> size_diff:int -> 'b t
-
-  val cons_each: 'a -> size:int -> 'a list t -> 'a list t
-
-end = struct
-
-
-  type 'a t =  'a Seq.t list
-  (* [seq1; seq2;....]  
-     (seq1's elm size) +1 = (seq2's elm size)
-     (seq2's elm size) +1 = (seq3's elm size)
-     ...
-
-   *)
-
-  let empty = []
-
-  let to_seq t =
-    List.fold_left
-      (fun acc seq -> Seq.append acc seq)
-      Seq.empty
-    t
-             
-  let rec append t1 t2 =
-    match t1, t2 with
-    |(seq1::other1, seq2::other2) ->
-      (Seq.append seq1 seq2)::(append other1 other2)
-    |(_, []) -> t1
-    |([], _) -> t2
-
-
-  let rec shift_left n t =
-    if n <= 0 then t
-    else
-      (Seq.empty)::(shift_left (n-1) t)
-
-
-  let rec append_sequence seq ~size t =
-    if size <> 1 then invalid_arg "append_sequence: not impl"
-    else
-      match t with
-      |[] -> [seq]
-      |seq'::other -> (Seq.append seq seq')::other
-
-                    
-  let map t ~f ~size_diff:added_size =
-    assert (added_size >= 0);
-    let t' = List.map
-               (fun seq -> Seq.map ~f:f seq)
-               t
-    in
-    shift_left added_size t'
-              
-    
-  let cons_each x ~size:x_size list_t =
-    (assert (x_size >= 0));
-    let list_t' =
-      List.map
-        (Seq.map ~f:(fun l -> x::l))
-      list_t
-    in
-    shift_left x_size list_t'
-         
-end
-                 
 
      
                     
@@ -621,31 +543,54 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
 
 let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Spec.t ) list
                   -> int
-                  -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) Seq.t = 
+                  -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) SortedSeq.t = 
   (fun ctx ep penv abduction_candidate arg_specs size_sum ->
     let arg_num = List.length arg_specs in
-    if size_sum < arg_num then Seq.empty
+    if size_sum < arg_num then SortedSeq.empty
     else
       match arg_specs with
-      |[] -> Seq.singleton ([], abduction_candidate)
+      |[] -> assert false
+      |[(x, x_spec)] ->
+        let x_size_max = size_sum - (arg_num -1) in (* >= 1 *)
+        let term_for_x:(Program.e * upProp * AbductionCandidate.t) SortedSeq.t =
+          f ctx ep penv abduction_candidate x_spec x_size_max
+        in
+        SortedSeq.map
+          term_for_x
+          ~f:(fun (e_x, prop_x, abduction_candidate) ->
+            [(x, (e_x, prop_x))], abduction_candidate)
+        ~size_diff:0
       |(x, x_spec)::lest_specs ->
         let x_size_max = size_sum - (arg_num -1) in (* >= 1 *)
         let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
           f ctx ep penv abduction_candidate x_spec x_size_max
-      in
-      Seq.concat_map
-        term_for_x
-        ~f:(fun (ex, (`Exists (_, clauses) as ex_prop), abduction_candidate) ->
-          let ex_size = Program.size
-          let ex_conds =
-            List.map (Hfl.replace Id.valueVar_id x) clauses in
-          let penv' = PathEnv.add_condition_list ex_conds penv in
-          let ctx = Context.push_arg ex ctx in
-          gen_args ctx ep penv' abduction_candidate lest_specs other_size
-          |> Seq.map
-               ~f:(fun (args, acc_abduction_candidate) ->
-                 (x,(ex, ex_prop))::args, acc_abduction_candidate)
-        )
+        in
+        let terms_seq_seq =
+          Seq.map
+            term_for_x
+            ~f:(fun (ex, (`Exists (_, clauses) as ex_prop), abduction_candidate) ->
+              let ex_size: int = Program.size ex in
+              let ex_conds =
+                List.map (Hfl.replace Id.valueVar_id x) clauses
+              in
+              let penv' = PathEnv.add_condition_list ex_conds penv in
+              let ctx = Context.push_arg ex ctx in
+              gen_args
+                ctx ep penv' abduction_candidate lest_specs
+                (size_sum - ex_size)
+              |> SortedSeq.map
+                   ~f:(fun (args, acc_abduction_candidate) ->
+                     (x,(ex, ex_prop))::args, acc_abduction_candidate)
+                   ~size_diff:ex_size
+            )
+        in
+        (* terms_seq_seqを結合する *)
+        Seq.fold
+          ~init:SortedSeq.empty
+          ~f:(fun acc term_seq ->
+            SortedSeq.append acc term_seq)
+          terms_seq_seq
+          )
     |_-> assert false
   )
 
