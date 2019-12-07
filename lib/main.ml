@@ -20,7 +20,7 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
        (Format.printf "synthesis SUCSESS:\ntime:%f\nz3 time:%f\niteration:%d\n\n\n@."
                       (ed -. st)
                       (!UseZ3.z3_t)
-                      (!GenEterms.iteration_count)
+                      (!GenEterms.constraint_count)
        )
        ;
        (Format.printf "%s\n\n@." (Program.to_string program))
@@ -32,7 +32,7 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
                      mes
                      (ed -. st)
                      (!UseZ3.z3_t)
-                      (!GenEterms.iteration_count)       
+                      (!GenEterms.constraint_count)       
     )
   |Some _ -> assert false
   |None -> assert false

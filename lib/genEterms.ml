@@ -1,8 +1,22 @@
+let constraint_count = ref 0
+
+module type GENETERMS =
+  sig
+    type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
+
+    val f:Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.sort -> Hfl.qhorn list 
+          -> (Program.e * upProp * AbductionCandidate.t) Base.Sequence.t
+  end
+
+  
+let generator ~size_max =
+(module struct  
 open Extensions
 module Seq = Base.Sequence
+module SSeq = (val (SortedSequence.generator ~size_max))
+
 type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exists.x.\phi(x,r) *)
 
-let iteration_count = ref 0
 
 module Spec:
 sig
@@ -113,8 +127,8 @@ end = struct
 end
 
 module Log:sig
-  val log_trial: Context.t -> AbductionCandidate.t -> PathEnv.t ->  Id.t -> Constraint.t -> unit
-  val string_of_trial: Context.t -> AbductionCandidate.t -> PathEnv.t -> Constraint.t -> string
+
+  val gen_trial_string: Context.t -> AbductionCandidate.t -> PathEnv.t -> Constraint.t -> string
   val log_trial_result: bool -> unit
 
   val log_abduction: AbductionCandidate.t -> unit
@@ -124,24 +138,12 @@ end = struct
 
   
   let log_cha = AppElimination.Log.log_cha
-  let log_trial ctx abduction_candi path_env var cons  =
-    (incr iteration_count);
-    Printf.fprintf
-      log_cha
-      "TRIAL:%d\n %s \n?? <- %s\nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n.......\n@."
-      (!iteration_count)
-      (Context.to_string ctx)
-      (Id.to_string_readable var)
-      (AbductionCandidate.get abduction_candi
-       |> List.map BaseLogic.p2string |> String.concat ";")
-      (PathEnv.to_string path_env)
-      (Constraint.to_string cons)
 
-
-  let string_of_trial ctx abduction_candi path_env cons  =
+  let gen_trial_string ctx abduction_candi path_env cons  =
+    let () = incr constraint_count in
     Printf.sprintf
-      "TRIAL:%d~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n %s \nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>>\n\n@."
-      (!iteration_count)
+      "Constraint NUM %d:~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n %s \nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>>\n\n@."
+      (!constraint_count)
       (Context.to_string ctx)
       (AbductionCandidate.get abduction_candi
        |> List.map BaseLogic.p2string |> String.concat ";")
@@ -277,7 +279,7 @@ let mk_arg_specs:(Id.t * Hfl.sort * Hfl.horn list) list
   )
   
  
-module SSeq = (val (SortedSequence.generator ~size_max:7)) (* 取り敢えずここで *)
+
             
 (* ************************************************** *)
 (* synthesis main *)
@@ -328,7 +330,7 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
                          ~premise:(PathEnv.extract_condition penv')
                          ~horns
                      in
-                     let trial_mes = Log.string_of_trial ctx abduction_candidate penv cons in
+                     let trial_mes = Log.gen_trial_string ctx abduction_candidate penv cons in
                      let valid = Constraint.is_valid ~start_message:trial_mes cons in
                      let () = Log.log_trial_result  valid in
                      if  valid then
@@ -477,7 +479,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                ~premise:(PathEnv.extract_condition penv)
              ~horns:(arg_horn::spec_horns)
            in
-           let trial_mes = Log.string_of_trial ctx abduction_candidate penv cons in
+           let trial_mes = Log.gen_trial_string ctx abduction_candidate penv cons in
            let solutions_seq = Constraint.solve ~start_message:trial_mes cons in
            Seq.map
              solutions_seq
@@ -501,7 +503,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                let exists_var_instances =
                  gen_args
                    ctx ep penv abduction_candidate exists_var_specs
-                   (size - generate_args_num)
+                   ((size - 1) - generate_args_num)
                in
                SSeq.map
                  exists_var_instances
@@ -550,7 +552,7 @@ and f ctx ep penv abduction_candidate spec size =
 
 
     
-let f ep penv abduction_candidate sort qhorns max_size =
+let f ep penv abduction_candidate sort qhorns =
   let horns =
     List.map (function | `Horn _ as horns -> horns
                        | _ -> invalid_arg "genEterm: quantifyer not support")
@@ -574,7 +576,8 @@ let f ep penv abduction_candidate sort qhorns max_size =
     abduction_candidates_sequence
     ~f:(fun abduction_candidate ->
       let () = Log.log_abduction abduction_candidate in
-      f top_ctx ep penv abduction_candidate spec max_size
+      f top_ctx ep penv abduction_candidate spec size_max
       |> SSeq.to_seq
     )
 
+end:GENETERMS)

@@ -11,7 +11,7 @@ end
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
 let generator data_env qualifiers e_max_size =
   (module struct
-
+     module GenEterms = (val (GenEterms.generator ~size_max:e_max_size))
      type matchConditionInfo = {dataName:Id.t;
                                 scrutinee: Id.t;
                                 sclarConstructor: Id.t;
@@ -97,7 +97,7 @@ let generator data_env qualifiers e_max_size =
 
 
      let gen_e_term ep penv abduction_candidate sort spec =
-       GenEterms.f ep penv abduction_candidate sort spec e_max_size
+       GenEterms.f ep penv abduction_candidate sort spec
        |> Seq.hd
 
 

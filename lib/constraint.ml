@@ -23,7 +23,47 @@ let to_string ({exists = exists; sharedPremise = shared_premise; horns = horn_li
     |> String.concat "."
   in
   "∃"^exists_str^"["^shared_premise_str^"] *\n   ["^qhorn_list_str^"    \n]"
-  
+
+
+module Log = struct
+
+  let log_cha = AppElimination.Log.log_cha
+
+  let log_solution mes (sita, exists_horns) =
+    let sita_str =
+      M.fold
+        (fun i e acc ->
+          (Id.to_string_readable i)^"-->"
+          ^(BaseLogic.p2string e)
+          ^"; "
+          ^acc)
+        sita
+        ""
+    in
+    let exists_horns_str =
+      List.map
+        (fun (x, _, horns) ->
+          let horns_str =
+            List.map
+              Hfl.qhorn_to_string
+              (horns:> Hfl.qhorn list)
+            |>String.concat "\n   "
+          in
+          (Id.to_string_readable x)^"<::<::<\n "^
+            horns_str)
+        exists_horns
+      |>
+        String.concat "\n"
+    in
+    Printf.fprintf
+      log_cha
+      "%s\n------------------------------\nsita:%s\n remain exists:\n%s"
+    mes
+       sita_str    
+       exists_horns_str
+              
+
+end
   
        
 let rec separate_forall_rec (qhorn:Hfl.qhorn) acc_binds =
@@ -138,9 +178,18 @@ let distribute_horn_to_exists_var' ~exists horns =
       exists
       ([], horns)
   in
-  if remain <> [] then assert false (*existsないならcheckしてるはず *)
-  else
+  if
+    List.for_all
+      (function
+       | `Horn (_, `Base (BaseLogic.Bool true)) -> true
+       | horn -> UseZ3.horn_to_z3_expr horn
+                 |> UseZ3.is_valid
+      )
+      remain
+  then
     exists_horns
+  else
+    assert false                (* 起こってほしくない *)
     
       
 let distribute_horn_to_exists_var ~exists horns
@@ -231,6 +280,11 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
           in
           Base.Sequence.Step.Done
         |Some (solution, body') ->
+          let () =
+            Log.log_solution
+              "FOUND solution:\n"            
+              solution
+          in
           Base.Sequence.Step.Yield (solution,
                                       (i+1, body'))
        )

@@ -9,6 +9,7 @@ val f:
  -> Hfl.clause 
  ->solution  Base.Sequence.t
 
+
 val bind_solutions
     :BaseLogic.t M.t
      -> premise:(Hfl.clause) list  
@@ -20,5 +21,8 @@ val bind_solutions
 module Log:
 sig
   val log_cha: out_channel
+    
+  val log_solution: string -> solution -> unit
+    
 end 
   

@@ -103,6 +103,8 @@ let is_exists_free_horn ~exists (`Horn (cs, c)) =
 let rec pre_check_horns sita ~premise ~exists horns =
   match horns with
   |[] -> Some []
+  | (`Horn (_, `Base (BaseLogic.Bool true))) :: xs ->
+     pre_check_horns sita ~premise ~exists xs
   | (`Horn (cs, c) as horn)::xs ->
      let horn_premise_added =
        `Horn (cs@premise, c)
@@ -125,6 +127,7 @@ let rec pre_check_horns sita ~premise ~exists horns =
 (* 結果をandでまとめる *)
 (* この時に、T/Fが判定できるhornは先に判定する。この判定は良い感じに遅延される *)
 (* existsは新たな差分を返す *)
+(* 最後には判定していないのか、明日朝やるか *)
 let rec bind_solutions
         :BaseLogic.t M.t
          -> premise:(Hfl.clause) list
