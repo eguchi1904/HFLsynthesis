@@ -516,12 +516,12 @@ let alpha_rename {params = params
         match sort with
         |(`BoolS | `IntS | `DataS _ | `SetS _ as basesort) ->
           let base_sort = to_baseLogic_sort basesort in
-          let id' = Id.genid (Id.to_string id) in
+          let id' = Id.genid_from_id id in
           let open BaseLogic in
           let id'_var = Var (base_sort, id') in
           ((id', sort)::acc_args, M.add id id'_var acc_map)
         | _  ->
-           let id' = Id.genid (Id.to_string id) in
+           let id' = Id.genid_from_id id in
            ((id', sort)::acc_args, acc_map))
       args
       ([], M.empty)
