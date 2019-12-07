@@ -5,6 +5,48 @@ module Seq = Base.Sequence
 type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
 let expansion_max = 1
 
+module Log:sig
+  val log_cha: out_channel 
+  val log_solution: string -> solution -> unit
+
+  val log_message: string -> unit
+
+end = struct
+  
+  let log_cha = open_out "eterm_search.log"
+              
+  let log_solution mes (sita, exists, horns) =
+    let sita_str =
+      M.fold
+        (fun i e acc ->
+          (Id.to_string_readable i)^"-->"
+          ^(BaseLogic.p2string e)
+          ^"; "
+          ^acc)
+        sita
+        ""
+    in
+    let exists_str =
+      List.map ~f:(fun (x,_) -> Id.to_string_readable x) exists
+      |> String.concat ", "
+    in
+    let horns_str =
+      List.map ~f:Hfl.qhorn_to_string (horns :> Hfl.qhorn list)
+    |> String.concat "\n"
+    in
+    Printf.fprintf
+      log_cha
+      "*****%s*****\nsita:%s\nexists:%s\nhorns:\n%s\n"
+      mes sita_str exists_str horns_str
+    
+  let log_message mes =
+        Printf.fprintf
+          log_cha
+          "\n%s\n" mes      
+    
+    
+end
+
 let subst_base_term_horn sita =
   fun (`Horn (cs, c)) ->
           `Horn (List.map ~f:(Hfl.subst_base_term sita) cs,
@@ -24,18 +66,19 @@ let is_exists_free_horn sita ~exists (`Horn (cs, c)) =
         ~f:(fun c -> not (S.mem x (Hfl.fv c)))
     )
 
-let rec pre_check_horns sita ~exists horns =
+let rec pre_check_horns sita ~premise ~exists horns =
   match horns with
   |[] -> Some []
-  |horn::xs ->
+  |(`Horn (cs, c) as horn)::xs ->
     if is_exists_free_horn sita ~exists horn then
+      let horn = `Horn (cs@premise, c) in
       let horn = subst_base_term_horn sita horn in
       if UseZ3.horn_to_z3_expr horn |> UseZ3.is_valid then
-        pre_check_horns sita ~exists xs
+        pre_check_horns sita ~premise ~exists xs
       else
         None
     else
-      (match pre_check_horns sita ~exists xs with
+      (match pre_check_horns sita ~premise ~exists xs with
        |None -> None
        |Some horns -> Some (horn::horns))
 
@@ -45,24 +88,26 @@ let rec pre_check_horns sita ~exists horns =
 (* existsは新たな差分を返す *)
 let rec bind_solutions
         :BaseLogic.t M.t
+         -> premise:(Hfl.clause) list
          -> exists:(Id.t * Hfl.sort) list
          -> 'a list
          -> f:(BaseLogic.t M.t -> 'a -> solution Seq.t)
          -> solution Seq.t =
-  (fun sita ~exists l ~f ->
+  (fun sita ~premise ~exists l ~f ->
     match l with
     |[] -> Seq.singleton (sita, [], []) (* 量化子は差分を返すので *)
     |x::xs ->
-      let solution_of_x = f sita x in
+      let solution_of_x = f sita x |> Seq.memoize in
       Seq.concat_map
         solution_of_x
         ~f:(fun (sita, exists_x, horns_x) ->
-          match pre_check_horns sita ~exists:(exists_x@exists) horns_x with
+          (Log.log_solution "will bind" (sita, (exists@exists_x), horns_x)); 
+          match pre_check_horns sita ~premise ~exists:(exists_x@exists) horns_x with
           |None -> Seq.empty
           |Some [] ->
-            bind_solutions sita ~exists xs ~f
+            bind_solutions sita ~premise ~exists xs ~f
           |Some horns_x -> 
-            bind_solutions sita ~exists xs ~f
+            bind_solutions sita ~premise ~exists xs ~f
             |> Seq.map
                  ~f:(fun (sita, exists_xs, horn_xs) ->(sita, exists_x@exists_xs, horns_x@horn_xs))
         )
@@ -184,7 +229,7 @@ let rec solve_inequality_constraints:
       -> solution Seq.t = 
   (fun expand_count sita ~exists:binds ep ~premise ineq_cons ->
     bind_solutions
-      sita ~exists:binds ineq_cons
+      sita ~premise:(Premise.show premise) ~exists:binds ineq_cons
       ~f:(fun sita (c1, c2) ->
         let premise' = Premise.add c1 premise in
         eliminate_app expand_count sita ~exists:binds ep ~premise:premise' c2
@@ -356,7 +401,7 @@ and solve_application_list:
   =
   (fun expand_count sita ~exists:binds ep ~premise apps ->
     bind_solutions
-      sita apps ~exists:binds
+      sita apps ~premise:(Premise.show premise) ~exists:binds
       ~f:(fun sita app ->
         solve_application_expand_if_fail expand_count sita ~exists:binds ep ~premise app)
   )
@@ -380,7 +425,7 @@ and eliminate_app_from_or_clause_list
       expand_count sita ~exists:binds ep ~premise or_clauses 
     :solution Seq.t  =
   bind_solutions
-    sita ~exists:binds
+    sita ~premise:(Premise.show premise) ~exists:binds
     or_clauses
     ~f:(fun sita or_clause ->
       eliminate_app_from_or_clause
@@ -399,7 +444,7 @@ and eliminate_app expand_count sita ~exists:binds ep ~premise clause =
                    | (_ as c) -> `Snd c)
   in
   bind_solutions
-    sita ~exists:binds
+    sita ~premise:(Premise.show premise) ~exists:binds
     [ `Toplevel_apps toplevel_apps;
       `Or_clauses_with_app_term or_clauses_with_app_term;
       `Other_clauses other_clauses]
@@ -416,21 +461,22 @@ and eliminate_app expand_count sita ~exists:binds ep ~premise clause =
        )
             
 
-    
 let f sita ~exists:binds ep premise_clauses clause =
   let premise = List.fold_right
                   ~f:Premise.add
                   premise_clauses
                   ~init:Premise.empty
   in
-  eliminate_app 0 sita ~exists:binds ep ~premise clause
-  |> Seq.concat_map
-       ~f:(fun (sita, new_exists, horns) ->
-         match pre_check_horns sita ~exists:(new_exists@binds) horns with
-         |None -> Seq.empty
-         |Some horns ->
-           let horns =          (* sitaを反映してから返す *)
-             List.map ~f:(subst_base_term_horn sita) horns in
-           Seq.singleton (sita, new_exists, horns))
-
-  
+  let body =
+    eliminate_app 0 sita ~exists:binds ep ~premise clause
+    |> Seq.concat_map
+         ~f:(fun (sita, new_exists, horns) ->
+           match pre_check_horns sita ~premise:(Premise.show premise) ~exists:(new_exists@binds) horns with
+           |None -> Seq.empty
+           |Some horns ->
+             let horns =          (* sitaを反映してから返す *)
+               List.map ~f:(subst_base_term_horn sita) horns in
+             Seq.singleton (sita, new_exists, horns))
+  in
+  body
+  (* debugのために、sequenceの探索に入った時にlogをとる。 *)

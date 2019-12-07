@@ -108,20 +108,22 @@ end = struct
        ^(to_string' other (i+2))
     | [] -> ""
 
-  let to_string t = to_string' t 0
+  let to_string t = to_string' (List.rev t) 0
        
 end
 
 module Log:sig
   val log_trial: Context.t -> AbductionCandidate.t -> PathEnv.t ->  Id.t -> Constraint.t -> unit
-
+  val string_of_trial: Context.t -> AbductionCandidate.t -> PathEnv.t -> Constraint.t -> string
   val log_trial_result: bool -> unit
 
   val log_abduction: AbductionCandidate.t -> unit
+
+  val log_message: string -> unit
 end = struct
 
   
-  let log_cha = open_out "eterm_search.log"
+  let log_cha = AppElimination.Log.log_cha
   let log_trial ctx abduction_candi path_env var cons  =
     (incr iteration_count);
     Printf.fprintf
@@ -134,6 +136,18 @@ end = struct
        |> List.map BaseLogic.p2string |> String.concat ";")
       (PathEnv.to_string path_env)
       (Constraint.to_string cons)
+
+
+  let string_of_trial ctx abduction_candi path_env cons  =
+    Printf.sprintf
+      "TRIAL:%d~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n %s \nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>>\n\n@."
+      (!iteration_count)
+      (Context.to_string ctx)
+      (AbductionCandidate.get abduction_candi
+       |> List.map BaseLogic.p2string |> String.concat ";")
+      (PathEnv.to_string path_env)
+      (Constraint.to_string cons)
+                          
 
   let log_trial_result valid =
     if valid then
@@ -149,7 +163,14 @@ end = struct
     Printf.fprintf
       log_cha
       "\n\n--------------------------------------------------\nnext abduction:\n%s\n\n--------------------------------------------------\n\n\n"
-    (AbductionCandidate.to_string abduction_candi)
+      (AbductionCandidate.to_string abduction_candi)
+
+
+  let log_message mes =
+        Printf.fprintf
+          log_cha
+          "\n%s\n" mes
+      
 end  
 
 
@@ -281,6 +302,7 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
              ~f:(function
                  |[]-> Seq.Step.Done
                  |(id, sort)::next_candidates ->
+                   let ctx = Context.push_head id [] ctx in
                    let leaf_prop = hfl_prop_of_leaf ep id sort in
                    let abduction_condition =
                      AbductionCandidate.get abduction_candidate
@@ -306,9 +328,9 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
                          ~premise:(PathEnv.extract_condition penv')
                          ~horns
                      in
-                     let () = Log.log_trial ctx abduction_candidate penv id cons in
-                     let valid = Constraint.is_valid cons in
-                     let () = Log.log_trial_result valid in
+                     let trial_mes = Log.string_of_trial ctx abduction_candidate penv cons in
+                     let valid = Constraint.is_valid ~start_message:trial_mes cons in
+                     let () = Log.log_trial_result  valid in
                      if  valid then
                        let var_term = Program.App {head = id; args = []} in
                        Seq.Step.Yield ((var_term,
@@ -348,6 +370,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
           (* ここではseq *)
           f (Context.push_goal x ctx)
             ep penv abduction_candidate x_spec x_size_max |> SSeq.to_seq
+          |> Seq.memoize
         in
         let terms_seq_seq =
           Seq.map
@@ -429,7 +452,6 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                  -> int -> (Id.t * Hfl.funcSort)
                  -> (Program.e * upProp * AbductionCandidate.t) SSeq.t = 
   (fun ctx ep penv abduction_candidate spec size (head,`FunS (arg_sorts, _))  ->
-
     let arity = List.length arg_sorts in
     if (arity +1 > size) then SSeq.empty
     else
@@ -447,17 +469,28 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
            in
            let arg_horn =`Horn ([], List.map snd arg_specs |> Hfl.concat_by_and)
            in
-           let solutions_seq =
+           
+           let cons =
              Constraint.make
                ep
                ~exists:args
                ~premise:(PathEnv.extract_condition penv)
              ~horns:(arg_horn::spec_horns)
-             |> Constraint.solve
            in
+           let trial_mes = Log.string_of_trial ctx abduction_candidate penv cons in
+           let solutions_seq = Constraint.solve ~start_message:trial_mes cons in
            Seq.map
              solutions_seq
              ~f:(fun (sita, exists_horns) ->
+               let ctx =        (* context更新 *)
+                 List.fold_left
+                   (fun acc (x, _) ->
+                     match M.find_opt x sita with
+                     |Some e -> Context.push_arg x (Program.Formula e) acc
+                     |None -> acc)
+                   ctx                 
+                   args
+               in
                let exists_var_specs =
                  mk_arg_specs exists_horns head
                in
@@ -514,7 +547,6 @@ and f ctx ep penv abduction_candidate spec size =
       in
       SSeq.append_sequence
         var_seq ~size:1 app_term_seq
-
 
 
     

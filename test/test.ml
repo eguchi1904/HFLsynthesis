@@ -190,6 +190,7 @@ module TestSSeq = struct
         if i >= start + num*len then None
         else
           Some ((mk_list i ~len), (i + len)))
+    |> Seq.memoize
 
 
   let mk_sseq start =           (* [[ 100],[101],[102]]; [[100;101];[100;102]..] *)
@@ -212,7 +213,7 @@ module TestSSeq = struct
   let test_concat () =
     (* [1],[2,3],[4,5,6]... *)
     let seq_sorted = mk_sorted_len_list_seq 1 ~num:5
-                   |> Seq.memoize
+                     |> Seq.memoize
     in
     (* [[ 100],[101],[102]]; [[100;101];[100;102]..] *)    
     let sseq = mk_sseq 100 in

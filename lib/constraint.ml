@@ -18,10 +18,11 @@ let to_string ({exists = exists; sharedPremise = shared_premise; horns = horn_li
     List.map Hfl.qhorn_to_string (horn_list:> Hfl.qhorn list)
     |> String.concat (indent^"\n")
   in
-  let exists_str = List.map (fun (x, _) -> Id.to_string_readable x) exists
-                   |> String.concat "."
+  let exists_str =
+    List.map (fun (x, _) -> Id.to_string_readable x) exists
+    |> String.concat "."
   in
-  "∃"^exists_str^"["^shared_premise_str^"] * ["^qhorn_list_str^"    \n]"
+  "∃"^exists_str^"["^shared_premise_str^"] *\n   ["^qhorn_list_str^"    \n]"
   
   
        
@@ -192,10 +193,19 @@ let distribute_horn_to_exists_var ~exists horns
       
 let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
   AppElimination.f sita ~exists ep (premise@shared_premise) result
+  |> Base.Sequence.map
+       ~f:(fun (sita, new_exists, horns) ->
+         let horns =
+           List.map
+             (fun (`Horn (cs, c)) -> `Horn (premise@cs, c))
+             horns
+         in
+         (sita, new_exists, horns))
+         
   
   
   
-let solve {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
+let solve ~start_message {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
   (* let exists_qhorns, horns = *)
   (*   List.fold_right *)
   (*     (fun qhorn (acc_exists, acc_horn) -> *)
@@ -209,30 +219,59 @@ let solve {exists = exists; sharedPremise = premise; horns = horns;equations = e
   let solutions =
     AppElimination.bind_solutions
       M.empty
+      ~premise
       ~exists
       horns
       ~f:(fun sita horn -> solve_horn sita ~exists ep premise horn)
   in
-  Base.Sequence.map
-    solutions
-    ~f:(fun (sita, new_exists, horns) ->
-      let exists_sum =
-        List.filter
-          (fun (x,_) -> not (M.mem x sita))
-          (new_exists@exists)
-      in
-      let exists_horns =
-        distribute_horn_to_exists_var
-          ~exists:exists_sum horns
-      in
-      (sita, exists_horns)
-    )
+  let body =
+    Base.Sequence.map
+      solutions
+      ~f:(fun (sita, new_exists, horns) ->
+        let exists_sum =
+          List.filter
+            (fun (x,_) -> not (M.mem x sita))
+            (new_exists@exists)
+        in
+        let exists_horns =
+          distribute_horn_to_exists_var
+            ~exists:exists_sum horns
+        in
+        (sita, exists_horns)
+      )
+  in
+  (* sequenceから、要素を取り出そうとするたびにlogを取る
+     for debug
+   *)
+  Base.Sequence.unfold_step
+    ~init:(1, body)
+    ~f:(fun (i, body) ->
+      if i mod 2 = 1 then
+          let () = Printf.fprintf
+                     AppElimination.Log.log_cha
+                     "\nTRY TO GET %d'th solution of...\n %s"
+                     ((i+1)/2)
+                     start_message
+          in
+          Base.Sequence.Step.Skip (i+1, body)
+      else
+        match Base.Sequence.next body with
+        |None ->
+          let () = Printf.fprintf
+                     AppElimination.Log.log_cha
+                     "\n SOLUTION NOT FOUND (><)\n"
+          in
+          Base.Sequence.Step.Done
+        |Some (solution, body') ->
+          Base.Sequence.Step.Yield (solution,
+                                      (i+1, body'))
+       )
+  
+  
       
       
-      
-      
-let is_valid t =
-  match Base.Sequence.hd (solve t) with
+let is_valid ~start_message t =
+  match Base.Sequence.hd (solve ~start_message t) with
   |None -> false
   |Some (_, []) -> true
   |Some _ -> false              (* 保守的に *)

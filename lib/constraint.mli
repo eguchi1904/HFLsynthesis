@@ -8,11 +8,11 @@ val make:
   -> horns:Hfl.horn list
   -> t
   
-val solve: t ->
+val solve: start_message:string -> t ->
 (BaseLogic.t M.t * (Id.t * Hfl.sort * Hfl.horn list) list) Base.Sequence.t  
 
 (* 保守的に、 *)
-val is_valid: t -> bool
+val is_valid: start_message:string -> t -> bool
 
 (* val split: (Id.t * Hfl.sort) list -> t -> t * (Id.t * (Hfl.qhorn list)) list *)
 

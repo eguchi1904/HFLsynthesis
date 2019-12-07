@@ -397,7 +397,7 @@ let rec qhorn_to_string (qhorn:qhorn) =
      let pre_cs_str = List.map (clause_to_string) pre_cs
                       |> String.concat "; "
      in
-     "["^pre_cs_str^"]==>"^(clause_to_string c)
+     "["^pre_cs_str^"] ==> "^(clause_to_string c)
   | `Exists (x, sort, qhorn) ->
      "∃"^(Id.to_string_readable x)^":"^(sort2string (sort:>sort))^"."^(qhorn_to_string qhorn)
   | `Forall (x, sort, qhorn) ->
