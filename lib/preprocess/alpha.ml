@@ -179,9 +179,10 @@ let g_refine env {name = name;
     
 
 let g_predicate_def env ({name = name;
-                         args = predicate_args;
-                         fixpoint = fixpoint_opt;
-                         body = body}
+                          args = predicate_args;
+                          exists = exists;                          
+                          fixpoint = fixpoint_opt;
+                          body = body}
                          :predicateDef) =
   
   let name' = newid name in
@@ -194,11 +195,20 @@ let g_predicate_def env ({name = name;
          sort = predicate_arg.sort})
       predicate_args
   in
+  let exists' =
+    List.map
+      (fun (x, sort) -> (newid x, sort))
+      exists
+  in
   let env'' =
     M.add_list2
       (List.map (fun (x:predicateArg) -> x.name) predicate_args)
       (List.map (fun (x:predicateArg) -> x.name) predicate_args')    
       (match fixpoint_opt with None -> env |Some _ -> env')
+    |>
+      M.add_list2
+        (List.map fst exists)
+        (List.map fst exists')
   in
   let body' = (match body with
                |Some c1, c2 -> Some (g_clause env'' c1), g_clause env'' c2
@@ -206,6 +216,7 @@ let g_predicate_def env ({name = name;
   in
   {name = name';
    args = predicate_args';
+   exists = exists';
    fixpoint = fixpoint_opt;
    body = body'},
   env'

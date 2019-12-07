@@ -411,6 +411,11 @@ let rec split_outside_exists (qhorn:qhorn) =
      let (binds, body') =  split_outside_exists body in
      (x, x_sort)::binds, body'
 
+let rec add_outside_exists exists qhorn =
+  match exists with
+  |[] -> qhorn
+  |(x, sort)::exists' ->
+    `Exists (x, sort, add_outside_exists exists' qhorn)
   
   
 

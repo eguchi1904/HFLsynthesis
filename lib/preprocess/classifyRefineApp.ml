@@ -28,6 +28,7 @@ let g_refine_case refine_id_set (case:refineCase) =
 
 let g_predicate_def refine_id_set {name = name;
                                    args = args;
+                                   exists = exists;
                                    fixpoint = fixpoint;
                                    body = body
                                   }
@@ -44,6 +45,7 @@ let g_predicate_def refine_id_set {name = name;
   in
   {name = name;
    args = args;
+   exists = exists;   
    fixpoint = fixpoint;
    body = body'
   }

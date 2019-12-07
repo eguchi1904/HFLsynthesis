@@ -24,10 +24,9 @@ type predicateArg =
   {name: Id.t;
    is_param: bool;
    sort: Hfl.sort}
-
-  
 (* Hfl.clauseとapplicationの部分が違う。parameter等の区別なし。HFl自体もそれで良いのでは？
-*)
+ *)
+  
 type  clause = (*\psi(x,y): predicate type formula *)
   [ `Base of BaseLogic.t
   | `Abs of ((Id.t * Hfl.sort) list * clause)(* 1階の場合は使わない *)           
@@ -49,6 +48,7 @@ type predicateDef = (* F x =mu \phi(x) => \phi(x, F) の形*)
   {name: Id.t;
    args: predicateArg list;
    fixpoint: Hfl.fixOp option;
+   exists: (Id.t * Hfl.baseSort) list;
    body: clause option * clause
   }
          
@@ -178,20 +178,22 @@ let align_by_arg: Id.t list -> Hfl.clause -> Hfl.clause list =
   
 (* ここで、`Hornしか生成されえないのを変える必要がある訳だな *)
 let mk_fhorn (pmap: predicateDef M.t) (predicate_def:predicateDef) :Hfl.fhorn=
-  let params, args = separate_params predicate_def.args in  
-  match predicate_def.body with
-  |(Some c1, c2) ->
-    let c1 = to_hfl_clause pmap c1 in
-    let c2 = to_hfl_clause pmap c2 in
-    let arg_cs = align_by_arg (List.map fst args) c1 in
-    {params = params;
-     args = args;
-     body = `Horn (arg_cs, c2)}
-  |None, c2 ->
-    let c2 = to_hfl_clause pmap c2 in
-    {params = params;
-     args = args;
-     body = `Horn ([], c2)}    
+  let params, args = separate_params predicate_def.args in
+  let exists = predicate_def.exists in
+  let horn =
+    match predicate_def.body with
+    |(Some c1, c2) ->
+      let c1 = to_hfl_clause pmap c1 in
+      let c2 = to_hfl_clause pmap c2 in
+      let arg_cs = align_by_arg (List.map fst args) c1 in
+      `Horn (arg_cs, c2)
+    |None, c2 ->
+      let c2 = to_hfl_clause pmap c2 in
+      `Horn ([], c2)
+  in
+  {params = params;
+   args = args;
+   body = Hfl.add_outside_exists exists horn}
 
 let mk_specification_fhorn var_name pmap (predicate_def:predicateDef) :Hfl.fhorn=
   let params, args = separate_params predicate_def.args in

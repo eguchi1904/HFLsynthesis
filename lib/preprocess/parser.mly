@@ -13,6 +13,7 @@ open BaseLogic
 %token QUALIFIER
 %token LET
 %token REC
+%token EXISTS
 // attribute
 %token PARAM
 %token SPECIFICATION
@@ -20,6 +21,7 @@ open BaseLogic
 %token PREDICATE
 %token MEASURE
 %token TERMINATION
+
 
 %token NU
 %token MU
@@ -67,6 +69,7 @@ open BaseLogic
 
 %token SUBSET UNION DIFF INTERSECTION
 %token COMMA
+%token DOT
 %token TRUE
 %token FALSE
 %token <int> INT
@@ -247,6 +250,10 @@ predicateArg:
 		 }
     }
 
+existsArg:
+|  LPAREN name = ID COLON basesort = basesort RPAREN
+    {(name, basesort)}
+
 
 fixpoint:
 | NU {Hfl.Nu}
@@ -258,8 +265,19 @@ predicateDef:
  { ParseSyntax.{name = name;
                 args = args;
 		fixpoint = fixpoint;
+		exists = [];
 		body = body}
  }
+
+|LET attribute(PREDICATE) fixpoint = option(attribute(fixpoint))
+    option(REC) name = ID args = appArgs(predicateArg) EQUAL
+          EXISTS exists = appArgs(existsArg) DOT body = predicateBody
+ { ParseSyntax.{name = name;
+                args = args;
+		fixpoint = fixpoint;
+		exists = exists;
+		body = body}
+ }        
 
 predicateBody:
 | pre = clause HORNIMPLIES body = clause
@@ -280,9 +298,19 @@ varSpecDec:
  { (fun_name, ParseSyntax.{name = pred_name;
                            args = args;
                            fixpoint = fixpoint;
+			   exists = [];
                		   body = body})
  }
 
+| LET fun_name = attribute(specAttribute) fixpoint = option(attribute(fixpoint))
+    pred_name = ID args = appArgs(predicateArg) EQUAL
+      EXISTS exists = appArgs(existsArg) DOT body = predicateBody
+ { (fun_name, ParseSyntax.{name = pred_name;
+                           args = args;
+                           fixpoint = fixpoint;
+			   exists = exists;
+               		   body = body})
+ }
 specAttribute:
 | SPECIFICATION name = ID
    { name }

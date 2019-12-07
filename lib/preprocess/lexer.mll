@@ -34,6 +34,9 @@ rule main = parse
  { LET }
 | "rec"
  { REC }
+| "exists"
+ { EXISTS }
+ 
 
  
 | "qualifier"
@@ -151,6 +154,8 @@ rule main = parse
  { PIPE }
 | ','
  { COMMA }
+| '.'
+ { DOT }
 | "true"
  { TRUE }
 | "false"

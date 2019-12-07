@@ -260,7 +260,7 @@ and g_clause env (c:clause) sort=
   match c with
   | `Base e ->
      `Base (g_base env e sort)
-  | `Abs (args, body) as abs-> (g_clause_abs env  abs sort :> clause)
+  | `Abs _ as abs-> (g_clause_abs env  abs sort :> clause)
   | `App {head = head; args= cs} when sort = `BoolS ->
      (match M.find_opt head env with
       |Some (`FunS (args, `BoolS)) ->
@@ -495,6 +495,7 @@ let g_predicate_def env predicate_def =
   let {name = name;
        args = predicate_args;
        fixpoint = fixpoint_opt;
+       exists = exists;
        body = body}
     = predicate_def
   in
@@ -505,6 +506,7 @@ let g_predicate_def env predicate_def =
   in
   let env' = M.add name predicate_sort env 
              |> M.add_list arg_sorts
+             |> M.add_list (exists:> (Id.t * Hfl.sort) list)
   in
   let body' = match body with
     |(Some c1), c2 ->
@@ -515,6 +517,7 @@ let g_predicate_def env predicate_def =
   {name = name;
    args = predicate_args;
    fixpoint = fixpoint_opt;
+   exists = exists;   
    body = body'}
      
     
