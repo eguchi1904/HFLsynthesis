@@ -52,28 +52,67 @@ let subst_base_term_horn sita =
           `Horn (List.map ~f:(Hfl.subst_base_term sita) cs,
                  Hfl.subst_base_term sita c)
 
+let rec extract_related_var' vars = function
+  | c :: lest ->
+     let c_fv = Hfl.fv c in
+     if S.exists (fun x -> S.mem x vars) c_fv then
+       extract_related_var' (S.union vars c_fv) lest
+     else
+       extract_related_var' vars lest
+  |[] -> vars
 
-let is_exists_free_horn sita ~exists (`Horn (cs, c)) =
-  let exists_vars =             (* sitaで割り当てらていない存在束縛された変数 *)
-    List.map exists ~f:fst
-    |> List.filter ~f:(fun x -> not (M.mem x sita))
-  in
+let rec extract_related_var vars cs  =
+  let vars' = extract_related_var' vars cs in
+  if S.equal vars vars' then
+    vars
+  else
+    extract_related_var vars' cs
+
+let rec lift_baseLogic_and =function
+  | `Base base :: other ->
+     let base_list = BaseLogic.list_and base in
+     let cs = List.map ~f:(fun base -> `Base base) base_list in
+     cs@(lift_baseLogic_and other)
+
+  | clause :: other ->
+     clause :: (lift_baseLogic_and other)
+
+  | [] -> []
+  
+  
+let extract_necessary_clauses vars cs =
+  let cs = lift_baseLogic_and cs in
+  let vars = extract_related_var vars cs in
+  List.filter ~f:(fun c -> (not (S.is_empty (S.inter vars (Hfl.fv c))))) cs
+       
+
+let filter_unnecessary_premise (`Horn (cs, c)) =
+  `Horn (extract_necessary_clauses (Hfl.fv c) cs,
+         c)  
+  
+let is_exists_free_horn ~exists (`Horn (cs, c)) =
   List.for_all                  (* 全てのexists変数が、fv(c::cs)に出現しない *)
-    exists_vars
+    (List.map ~f:fst exists)
     ~f:(fun x ->
       List.for_all
         (c::cs)
         ~f:(fun c -> not (S.mem x (Hfl.fv c)))
     )
-
+  
+(* ここを変える必要がある *)
 let rec pre_check_horns sita ~premise ~exists horns =
   match horns with
   |[] -> Some []
-  |(`Horn (cs, c) as horn)::xs ->
-    if is_exists_free_horn sita ~exists horn then
-      let horn = `Horn (cs@premise, c) in
-      let horn = subst_base_term_horn sita horn in
-      if UseZ3.horn_to_z3_expr horn |> UseZ3.is_valid then
+  | (`Horn (cs, c) as horn)::xs ->
+     let horn_premise_added =
+       `Horn (cs@premise, c)
+       |> subst_base_term_horn sita
+       |> filter_unnecessary_premise
+     in
+    if is_exists_free_horn ~exists horn_premise_added then
+      if UseZ3.horn_to_z3_expr horn_premise_added
+         |> UseZ3.is_valid
+      then
         pre_check_horns sita ~premise ~exists xs
       else
         None

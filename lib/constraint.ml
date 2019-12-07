@@ -48,39 +48,7 @@ let make
    sharedPremise = premise;
    horns = horns}
 
-let rec extract_related_var' vars = function
-  | c :: lest ->
-     let c_fv = Hfl.fv c in
-     if S.exists (fun x -> S.mem x vars) c_fv then
-       extract_related_var' (S.union vars c_fv) lest
-     else
-       extract_related_var' vars lest
-  |[] -> vars
 
-let rec extract_related_var vars cs  =
-  let vars' = extract_related_var' vars cs in
-  if S.equal vars vars' then
-    vars
-  else
-    extract_related_var vars' cs
-
-let rec lift_baseLogic_and =function
-  | `Base base :: other ->
-     let base_list = BaseLogic.list_and base in
-     let cs = List.map (fun base -> `Base base) base_list in
-     cs@(lift_baseLogic_and other)
-
-  | clause :: other ->
-     clause :: (lift_baseLogic_and other)
-
-  | [] -> []
-  
-  
-let extract_necessary_clauses vars cs =
-  let cs = lift_baseLogic_and cs in
-  let vars = extract_related_var vars cs in
-  List.filter (fun c -> (not (S.is_empty (S.inter vars (Hfl.fv c))))) cs
-     
   
 let rec is_valid_horn shared_premise (qhorn:Hfl.qhorn) =
   match qhorn with
@@ -240,7 +208,7 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
         (sita, exists_horns)
       )
   in
-  (* sequenceから、要素を取り出そうとするたびにlogを取る
+  (* sequenceから、要素を取り出そうとするたびにlogを取るように改変↓
      for debug
    *)
   Base.Sequence.unfold_step
