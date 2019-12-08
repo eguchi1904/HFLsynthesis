@@ -29,8 +29,8 @@ module Log = struct
 
   let log_cha = AppElimination.Log.log_cha
 
-  let log_solution mes (sita, exists_horns) =
-    let sita_str =
+
+  let sita2str sita =
       M.fold
         (fun i e acc ->
           (Id.to_string_readable i)^"-->"
@@ -38,7 +38,33 @@ module Log = struct
           ^"; "
           ^acc)
         sita
-        ""
+        ""    
+  let log_appElimination_solution mes (sita, new_exists, horns) =
+    let sita_str = sita2str sita in
+    let exists_str =
+      List.map
+        (fun (x, _) -> (Id.to_string_readable x))
+        new_exists
+      |> String.concat ","
+    in
+    let horns_str =
+      List.map Hfl.qhorn_to_string (horns:> Hfl.qhorn list)
+      |> String.concat "\n"
+    in
+    Printf.fprintf
+      log_cha
+      "%s\n------------------------------\nsita:%s\n new_exists:%s\nhorns:\n%s"
+      mes
+       sita_str    
+       exists_str
+       horns_str
+    
+    
+    
+
+  let log_solution mes (sita, exists_horns) =
+    let sita_str =
+      sita2str sita
     in
     let exists_horns_str =
       List.map
@@ -189,11 +215,35 @@ let distribute_horn_to_exists_var' ~exists horns =
   then
     exists_horns
   else
+    let remain_str =
+      List.map Hfl.qhorn_to_string (remain:> Hfl.qhorn list)
+      |> String.concat "\n"
+    in
+    let exists_str =
+      List.map (fun (x, _) -> Id.to_string_readable x) exists
+      |> String.concat "."
+    in
+    let () = output_string
+               Log.log_cha
+               ("assert false:\nramain:\n"^remain_str^"\nexists:"^exists_str)
+    in
     assert false                (* 起こってほしくない *)
     
-      
-let distribute_horn_to_exists_var ~exists horns
+
+let subst_base_term_horn sita =
+  fun (`Horn (cs, c)) ->
+          `Horn (List.map (Hfl.subst_base_term sita) cs,
+                 Hfl.subst_base_term sita c)
+
+        
+let distribute_horn_to_exists_var sita ~exists horns
     :(Id.t * Hfl.sort * (Hfl.horn list)) list =
+  (* sitaの反映 *)
+  let horns = List.map (subst_base_term_horn sita) horns in
+  let exists = List.filter      (* sitaで解決していないもの *)
+                 (fun (x,_) -> not (M.mem x sita))
+                 exists
+  in
   let horns =                   (* 出来るだけ別ける *)
     List.map
       (fun (`Horn (cs, c)) ->
@@ -245,6 +295,11 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
     Base.Sequence.map
       solutions
       ~f:(fun (sita, new_exists, horns) ->
+        let () =
+          Log.log_appElimination_solution
+              "\nFOUND app elmination solution:\n"            
+              (sita, new_exists, horns)
+          in
         let exists_sum =
           List.filter
             (fun (x,_) -> not (M.mem x sita))
@@ -252,7 +307,7 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
         in
         let exists_horns =
           distribute_horn_to_exists_var
-            ~exists:exists_sum horns
+            sita ~exists:exists_sum horns
         in
         (sita, exists_horns)
       )

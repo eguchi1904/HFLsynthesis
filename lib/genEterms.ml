@@ -142,7 +142,7 @@ end = struct
   let gen_trial_string ctx abduction_candi path_env cons  =
     let () = incr constraint_count in
     Printf.sprintf
-      "Constraint NUM %d:~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n %s \nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>>>>>\n\n@."
+      "Constraint NUM %d:~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n %s \nabduction condition:\n%s\n pathenv:\n\n%s \nconstraint:\n%s\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n@."
       (!constraint_count)
       (Context.to_string ctx)
       (AbductionCandidate.get abduction_candi
