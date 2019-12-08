@@ -6,7 +6,10 @@ sig
   type t
 
   val empty: t
-     
+    
+  val to_string: t -> string
+
+    
   val add: BaseLogic.t -> BaseLogic.t -> t -> t
 
   (* 単純に同値類に含まれているかを確認する *)
@@ -34,9 +37,8 @@ end = struct
 
   let empty = {equality = M.empty;
                upperBound = M.empty;
-               lowerBound = M.empty
-              }
-
+               lowerBound = M.empty}
+        
 
   let group_id t id =
     match M.find_opt id t.equality with
@@ -58,11 +60,38 @@ end = struct
      upperBound = t.upperBound;
      lowerBound = t.lowerBound
     }
+
+    
     
 
+  let reflect_env_to_term env e =
+    BaseLogic.replace_map env.equality e
+    |> TermIdTable.unfold_const    
+
+ 
+  let term_to_env_id env e =
+    let e = reflect_env_to_term env e in
+    match e with
+    |Var (IntS, _)|Int _ |Times _|Plus _ |Minus _ |Neg _ -> (* int_term *)
+      (* 結合順序に夜違い等を吸収する *)
+      let uf_free_e = TermIdTable.replace_uf_to_var e in
+      (match Polynomial.of_term uf_free_e with
+      |None -> assert false     (* 入力によってはありうるけど今は想定してないのでリマインダ *)
+      |Some poly ->
+        TermIdTable.to_id (Polynomial.to_term poly))
+    | _ -> TermIdTable.to_id e
+      
+      
+  let representative t e =
+    let e_id = term_to_env_id t e |> group_id t in
+    e_id
+      
+      
+    
+    
   let add e1 e2 t =
-    let e1_group = TermIdTable.to_id e1 |> group_id t in
-    let e2_group = TermIdTable.to_id e2 |> group_id t in
+    let e1_group = representative t e1 in
+    let e2_group = representative t e2 in
     if e1_group = e2_group then t
     else
       (* constを優先的に代表元にする *)
@@ -75,9 +104,6 @@ end = struct
       union e1_group e2_group t
 
 
-  let representative t e =
-    let e_id = TermIdTable.to_id e |> group_id t in
-    e_id
              
     
 
@@ -87,43 +113,36 @@ end = struct
     let e2_group = TermIdTable.to_id e2 |> group_id t in
     e1_group = e2_group
 
+      
 
+  let to_string t =
+    let eq_list_str =
+      M.fold
+        (fun id g acc ->
+          let dummy_sort = DataS (Id.genid_const "dummy", []) in
+          let id_term = TermIdTable.to_term id dummy_sort
+                        |> TermIdTable.unfold
+          in
+          let g_term = TermIdTable.to_term g dummy_sort
+                       |> TermIdTable.unfold
+          in
+          (p2string id_term)^"="^(p2string g_term)^";"^acc)
+        t.equality
+        ""
+    in
+    "["^eq_list_str^"]"
+        
+        
 
 
 
   (* ************************************************** *)
   (* ************************************************** *)    
-    
-  let rec express_int_term_by_representative_variable env e =
-    match e with
-    |Int i -> Int i
-    |UF (IntS,_, _) |Var (IntS, _)-> Var (IntS, representative env e)
-    |Times (t1, t2) ->
-      let t1' = express_int_term_by_representative_variable env t1 in
-      let t2' = express_int_term_by_representative_variable env t2 in
-      Times (t1', t2')
-    |Plus (t1, t2) ->
-      let t1' = express_int_term_by_representative_variable env t1 in
-      let t2' = express_int_term_by_representative_variable env t2 in
-      Plus (t1', t2')
-    |Minus (t1, t2) ->
-      let t1' = express_int_term_by_representative_variable env t1 in
-      let t2' = express_int_term_by_representative_variable env t2 in
-      Minus (t1', t2')
-    |Neg t1 ->
-      let t1' = express_int_term_by_representative_variable env t1 in
-      Neg t1'
-    | _ -> invalid_arg "express_int_term_by_representative_variable: not int term"
-
-  let reflect_env_to_int_term env e =
-    express_int_term_by_representative_variable env e
-    |> TermIdTable.unfold_const
 
 
   let solve_int_term ~exists env e1 e2 =
-    let env_list = (M.bindings env.equality, M.bindings env.lowerBound, M.bindings env.upperBound) in
-    let e1 = reflect_env_to_int_term env e1 in
-    let e2 = reflect_env_to_int_term env e2
+    let e1 = reflect_env_to_term env e1 in
+    let e2 = reflect_env_to_term env e2
     in
     match Polynomial.of_term e1 with
     |None -> None
@@ -166,7 +185,7 @@ end = struct
                          else assert false
          )
     then
-      let e1 = reflect_env_to_int_term t e1 in
+      let e1 = reflect_env_to_term t e1 in
       {equality = t.equality;
        upperBound = upper_map;
        lowerBound = t.lowerBound}
@@ -194,7 +213,7 @@ end = struct
                          else assert false
          )
     then
-      let e1 = reflect_env_to_int_term t e1 in
+      let e1 = reflect_env_to_term t e1 in
       {equality = t.equality;
        upperBound = t.upperBound;
        lowerBound = lower_map}

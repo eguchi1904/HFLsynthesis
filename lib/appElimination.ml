@@ -32,11 +32,28 @@ end = struct
 
   let add c t = 
     {generalPremise = c::t.generalPremise;
-     equalityPremise = match c with
-                       | `Base BaseLogic.Eq (e1, e2) ->
-                          SolveEquality.Env.add e1 e2 t.equalityPremise
-                       | _ ->
-                          t.equalityPremise
+     equalityPremise =
+       let open BaseLogic in
+       match c with
+       | `Base (Eq (e1, e2)) ->
+          SolveEquality.Env.add e1 e2 t.equalityPremise
+       | `Base (Le (Var (IntS, n), upper))
+         | `Base (Ge (upper, Var (IntS, n))) ->
+          SolveEquality.Env.add_upper_bound n upper t.equalityPremise
+       | `Base (Lt (Var (IntS, n), upper))
+         | `Base (Gt (upper, Var (IntS, n)))
+         ->
+          let upper = Minus (upper, Int 1) in
+          SolveEquality.Env.add_upper_bound n upper t.equalityPremise
+       | `Base (Le (lower, Var (IntS, n)))           
+         | `Base (Ge (Var (IntS, n), lower)) ->
+          SolveEquality.Env.add_lower_bound lower n t.equalityPremise
+       | `Base (Lt (lower, Var (IntS, n)))           
+         | `Base (Gt (Var (IntS, n), lower)) ->
+          let lower = Plus (lower, Int 1) in
+          SolveEquality.Env.add_lower_bound lower n t.equalityPremise
+       | _ ->
+          t.equalityPremise
     }
  
   let show_equality_env t = t.equalityPremise
@@ -137,10 +154,10 @@ end = struct
           "\n%s\n" mes      
 
   let log_equality_trial ctx (exists:Id.t list) (env:SolveEquality.Env.t) eq_cons =
-    let () = ignore env in
     let exists_str = List.map ~f:Id.to_string_readable exists
                      |> String.concat ","
     in
+    let eq_env_str = SolveEquality.Env.to_string env in
     let eq_cons_str =
       List.map
         ~f:(fun (e1, e2) ->
@@ -150,8 +167,8 @@ end = struct
     in
     Printf.fprintf
       log_cha
-      "EQUALITY TRIAL: \n context\n%s\n======\nexist:%s.\n equality:[%s]\n=====\n="
-      (Context.to_string ctx) exists_str eq_cons_str
+      "==================================================EQUALITY TRIAL: \n context\n%s\n======\nexist:%s.\n equality:%s => [%s]\n=====\n"
+      (Context.to_string ctx) exists_str eq_env_str eq_cons_str
 
     
   let result_to_string = function

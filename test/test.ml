@@ -107,6 +107,13 @@ module TestSolveEquality = struct
            
 end
 
+
+module TestConstraint = struct
+
+
+  
+end
+
 module TestSeq = struct
 
   module Seq = Base.Sequence

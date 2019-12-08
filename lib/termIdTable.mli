@@ -6,4 +6,7 @@ val unfold: BaseLogic.t -> BaseLogic.t
 
 val is_const_id: Id.t ->  bool
   
-val unfold_const: BaseLogic.t -> BaseLogic.t  
+val unfold_const: BaseLogic.t -> BaseLogic.t
+
+val replace_uf_to_var: BaseLogic.t -> BaseLogic.t
+  

@@ -4,7 +4,9 @@ sig
   type t
 
   val empty:t
-     
+
+  val to_string: t -> string
+    
   val add: BaseLogic.t -> BaseLogic.t -> t -> t
 
   val add_upper_bound: Id.t -> BaseLogic.t -> t -> t
