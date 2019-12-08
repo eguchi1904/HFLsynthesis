@@ -255,7 +255,7 @@ let rec solve acc_sita ~exists env eq_list=
                  && not (S.mem id (fv_include_v e))) ->
         let acc_sita =
           BaseLogic.subst_compose
-            (M.singleton id e) acc_sita
+             (M.singleton id e) acc_sita
         in
         let exists = List.filter exists ~f:(fun id -> not (M.mem id acc_sita)) in        
         solve acc_sita ~exists env other                
@@ -271,10 +271,9 @@ let rec solve acc_sita ~exists env eq_list=
        |(Minus _, _) |(_, Minus _)|(Neg _, _) |(_, Neg _)  ->
         (match Env.solve_int_term  ~exists env e1 e2 with
          |Some new_sita ->
-           let acc_sita = M.union
-                            (fun _ -> assert false)
-                            acc_sita
+           let acc_sita = BaseLogic.subst_compose
                             new_sita
+                            acc_sita
            in
           let exists = List.filter exists ~f:(fun id -> not (M.mem id acc_sita)) in
           solve acc_sita ~exists env other

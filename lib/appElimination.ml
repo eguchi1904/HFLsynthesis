@@ -444,7 +444,7 @@ and solve_equality_inequality_constraints:
     |None -> Seq.empty
     |Some sita' ->
       (* まず、unionは違うだろ *)
-      let sita = M.union (fun _ -> assert false) sita sita' in
+      let sita = BaseLogic.subst_compose sita' sita in
       (* in_eq_consをどうにかする *)
        solve_inequality_constraints
              ctx sita ~exists:binds ep ~premise ineq_cons
@@ -655,7 +655,8 @@ and eliminate_app ctx sita ~exists:binds ep ~premise clause =
   match SolveEquality.f ~exists:exists_for_solve_eq eq_env eq_cons with
   |None -> Seq.empty
   |Some sita' ->
-    let sita = M.union (fun _ -> assert false) sita sita' in
+    (* composeの順番に注意 *)
+    let sita = BaseLogic.subst_compose sita' sita in
   bind_solutions
     sita ~premise:(Premise.show premise) ~exists:binds
     [ `Toplevel_apps toplevel_apps;
