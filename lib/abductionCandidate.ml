@@ -35,8 +35,8 @@ let strengthen t =
 let filter_unsat_candidate penv candiates =
     let penv_z3 =
     PathEnv.extract_condition penv
-    |> List.map (function |`Base e -> e | _ -> invalid_arg "not impl yet")
-    |> List.map UseZ3.convert
+    (* |> List.map (function |`Base e -> e | _ -> assert false) *)
+    |> List.map UseZ3.clause_to_z3_expr
     |> List.map fst
     in
     List.filter
