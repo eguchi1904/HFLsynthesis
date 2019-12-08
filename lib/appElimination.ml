@@ -313,19 +313,26 @@ let rec separate_toplevel_apps (clause:Hfl.clause) =
   | e -> ([], [e])
 
 
-let rec separete_toplevel_eq (clause:Hfl.clause) =
+(*  adhock 取り敢えずここでといて良いものだけ *)
+let rec separete_toplevel_eq ~exists (clause:Hfl.clause) =
+  let open BaseLogic in
   match clause with
-  | `Base (BaseLogic.Eq (e1, e2)) ->
-     ([(e1, e2)], [])
+  | `Base (Eq (e1, e2)) ->
+     (match e1, e2 with
+      |Var (_, x), _ when List.mem exists x ~equal:(=) -> 
+        ([(e1, e2)], [])
+      |_ , Var (_, x) when List.mem exists x ~equal:(=) -> 
+        ([(e1, e2)], [])
+      | _ -> ([], [clause]))
   | `And (c1, c2) ->
-     let eq_cons1, cs1 = separete_toplevel_eq c1 in
-     let eq_cons2, cs2 = separete_toplevel_eq c2 in
+     let eq_cons1, cs1 = separete_toplevel_eq ~exists c1 in
+     let eq_cons2, cs2 = separete_toplevel_eq ~exists c2 in
      (eq_cons1@eq_cons2, cs1@cs2)
   | e -> ([], [e])
 
-let rec separete_toplevel_eq_from_list cs =
+let rec separete_toplevel_eq_from_list ~exists cs =
   let eq_cs_list_list, other_cs_list_list =
-    (List.map ~f:separete_toplevel_eq cs)
+    (List.map ~f:(separete_toplevel_eq ~exists) cs)
     |> List.unzip
   in
   (List.concat eq_cs_list_list, List.concat other_cs_list_list)
@@ -638,7 +645,13 @@ and eliminate_app_from_or_clause_list
 
 and eliminate_app ctx sita ~exists:binds ep ~premise clause =
   let toplevel_apps, other_clauses = separate_toplevel_apps clause in
-  let eq_cons, other_clauses = separete_toplevel_eq_from_list other_clauses in
+  let exists_for_solve_eq =
+          List.map ~f:fst binds
+          |> List.filter ~f:(fun id -> not (M.mem id sita))
+  in
+  (* ここで任意のeq_consを取ってきても解けるように、SOlveEq.fを強くしたい *)
+  let eq_cons, other_clauses =
+    separete_toplevel_eq_from_list ~exists:exists_for_solve_eq other_clauses in
   let or_clauses_with_app_term, other_clauses =
     List.partition_map
       other_clauses
@@ -646,10 +659,6 @@ and eliminate_app ctx sita ~exists:binds ep ~premise clause =
                       if Hfl.app_term_exist c then
                         `Fst c  else `Snd c
                    | (_ as c) -> `Snd c)
-  in
-  let exists_for_solve_eq =
-          List.map ~f:fst binds
-          |> List.filter ~f:(fun id -> not (M.mem id sita))
   in
   let eq_env = (Premise.show_equality_env premise) in
   match SolveEquality.f ~exists:exists_for_solve_eq eq_env eq_cons with
