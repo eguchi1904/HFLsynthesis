@@ -16,29 +16,49 @@ sig
   val representative: t -> BaseLogic.t -> Id.t
     
   val is_same: t -> BaseLogic.t -> BaseLogic.t -> bool
+
+  val solve_int_term: exists:Id.t list -> t -> BaseLogic.t -> BaseLogic.t -> BaseLogic.t M.t option
+
+  val add_upper_bound: Id.t -> BaseLogic.t -> t -> t
+
+  val add_lower_bound: BaseLogic.t -> Id.t -> t -> t    
     
 end = struct
   (* len x, Cons x xs などの項にfreshな変数を割り当てる *)
   (* 定数を特別扱いしたい気持ちになるな... *)
   (* 要素が大きいならunionfindとか使うべきだろうけど、unionあまり発生しないのでこれで良いだろう *)
-  type t = (Id.t M.t)
+  type t = {equality:Id.t M.t;
+            upperBound:BaseLogic.t list M.t;
+            lowerBound:BaseLogic.t list M.t
+           }
 
-  let empty = M.empty
+  let empty = {equality = M.empty;
+               upperBound = M.empty;
+               lowerBound = M.empty
+              }
+
 
   let group_id t id =
-    match M.find_opt id t with
+    match M.find_opt id t.equality with
     |Some id' -> id'
     |None -> id
 
            
   let union g1 g2 t =           (* g1 = g2 *)
-    M.map
-      (fun group_id ->
-        if group_id = g1 then g2
-        else
-          group_id
-      )
-    t
+    {equality =
+       M.map
+         (fun group_id ->
+           if group_id = g1 then g2
+           else
+             group_id
+         )
+         t.equality    
+       |> M.add g1 g2
+       |> M.add g2 g2;
+     upperBound = t.upperBound;
+     lowerBound = t.lowerBound
+    }
+    
 
   let add e1 e2 t =
     let e1_group = TermIdTable.to_id e1 |> group_id t in
@@ -66,67 +86,127 @@ end = struct
     let e1_group = TermIdTable.to_id e1 |> group_id t in
     let e2_group = TermIdTable.to_id e2 |> group_id t in
     e1_group = e2_group
+
+
+
+
+
+  (* ************************************************** *)
+  (* ************************************************** *)    
     
+  let rec express_int_term_by_representative_variable env e =
+    match e with
+    |Int i -> Int i
+    |UF (IntS,_, _) |Var (IntS, _)-> Var (IntS, representative env e)
+    |Times (t1, t2) ->
+      let t1' = express_int_term_by_representative_variable env t1 in
+      let t2' = express_int_term_by_representative_variable env t2 in
+      Times (t1', t2')
+    |Plus (t1, t2) ->
+      let t1' = express_int_term_by_representative_variable env t1 in
+      let t2' = express_int_term_by_representative_variable env t2 in
+      Plus (t1', t2')
+    |Minus (t1, t2) ->
+      let t1' = express_int_term_by_representative_variable env t1 in
+      let t2' = express_int_term_by_representative_variable env t2 in
+      Minus (t1', t2')
+    |Neg t1 ->
+      let t1' = express_int_term_by_representative_variable env t1 in
+      Neg t1'
+    | _ -> invalid_arg "express_int_term_by_representative_variable: not int term"
+
+  let reflect_env_to_int_term env e =
+    express_int_term_by_representative_variable env e
+    |> TermIdTable.unfold_const
+
+
+  let solve_int_term ~exists env e1 e2 =
+    let env_list = (M.bindings env.equality, M.bindings env.lowerBound, M.bindings env.upperBound) in
+    let e1 = reflect_env_to_int_term env e1 in
+    let e2 = reflect_env_to_int_term env e2
+    in
+    match Polynomial.of_term e1 with
+    |None -> None
+    |Some e1_poly -> 
+      (match Polynomial.of_term e2 with
+       |None -> None
+       |Some e2_poly -> 
+         (match Polynomial.solve_eq ~exists e1_poly e2_poly with
+          |Some sita_poly ->
+            let new_sita =
+              M.mapi
+                (fun id e ->
+                  let e' = e |> Polynomial.to_term |> TermIdTable.unfold in
+                  if (S.mem id (fv_include_v e')) then
+                    invalid_arg "solve_int_term: not yet impl"
+                  else
+                    e'
+                )
+                sita_poly
+            in
+            Some new_sita
+          |None -> None
+         )
+      )
+
+
+  let add_upper_bound n e1 t =
+    let upper_map = M.add_list_map n e1 t.upperBound in
+    let n_lower_bounds =
+      match M.find_opt n t.lowerBound with
+      |None -> []
+      |Some l -> l
+    in
+    if List.exists
+         n_lower_bounds
+         ~f:(fun n_lower ->
+           match solve_int_term ~exists:[] t n_lower e1 with
+           |None -> false
+           |Some sita -> if M.is_empty sita then true
+                         else assert false
+         )
+    then
+      let e1 = reflect_env_to_int_term t e1 in
+      {equality = t.equality;
+       upperBound = upper_map;
+       lowerBound = t.lowerBound}
+      |> add (Var (IntS, n)) e1
+    else
+      {equality = t.equality;
+       upperBound = upper_map;
+       lowerBound = t.lowerBound}      
+        
+    
+
+  let add_lower_bound e1 n t =
+    let lower_map = M.add_list_map n e1 t.lowerBound in
+    let n_upper_bounds =
+      match M.find_opt n t.upperBound with
+      |None -> []
+      |Some l -> l
+    in
+    if List.exists
+         n_upper_bounds
+         ~f:(fun n_upper ->
+           match solve_int_term ~exists:[] t n_upper e1 with
+           |None -> false
+           |Some sita -> if M.is_empty sita then true
+                         else assert false
+         )
+    then
+      let e1 = reflect_env_to_int_term t e1 in
+      {equality = t.equality;
+       upperBound = t.upperBound;
+       lowerBound = lower_map}
+      |> add (Var (IntS, n)) e1
+    else
+      {equality = t.equality;
+       upperBound = t.upperBound;
+       lowerBound = lower_map}      
+        
+     
 end
 
-let rec express_int_term_by_representative_variable env e =
-  match e with
-  |Int i -> Int i
-  |UF (IntS,_, _) |Var (IntS, _)-> Var (IntS, Env.representative env e)
-  |Times (t1, t2) ->
-    let t1' = express_int_term_by_representative_variable env t1 in
-    let t2' = express_int_term_by_representative_variable env t2 in
-    Times (t1', t2')
-  |Plus (t1, t2) ->
-    let t1' = express_int_term_by_representative_variable env t1 in
-    let t2' = express_int_term_by_representative_variable env t2 in
-    Plus (t1', t2')
-  |Minus (t1, t2) ->
-    let t1' = express_int_term_by_representative_variable env t1 in
-    let t2' = express_int_term_by_representative_variable env t2 in
-    Minus (t1', t2')
-  |Neg t1 ->
-    let t1' = express_int_term_by_representative_variable env t1 in
-    Neg t1'
-  | _ -> invalid_arg "express_int_term_by_representative_variable: not int term"
-
-
-
-let solve_int_term acc_sita ~exists env e1 e2 =
-  let e1 = express_int_term_by_representative_variable env e1
-           |> TermIdTable.unfold_const
-  in
-  let e2 = express_int_term_by_representative_variable env e2
-           |> TermIdTable.unfold_const         
-  in
-  match  Polynomial.of_term e1 with
-  |None -> None
-  |Some e1_poly -> 
-    (match Polynomial.of_term e2 with
-     |None -> None
-     |Some e2_poly -> 
-       (match Polynomial.solve_eq ~exists e1_poly e2_poly with
-        |Some sita_poly ->
-          let new_sita =
-            M.mapi
-              (fun id e ->
-                let e' = e |> Polynomial.to_term |> TermIdTable.unfold in
-                if (S.mem id (fv_include_v e')) then
-                  invalid_arg "solve_int_term: not yet impl"
-                else
-                  e'
-              )
-              sita_poly
-          in
-          let acc_sita = M.union
-                           (fun _ -> assert false)
-                           acc_sita
-                           new_sita
-          in
-          Some acc_sita
-        |None -> None
-       )
-    )
 
   
 
@@ -135,21 +215,29 @@ let rec solve acc_sita ~exists env eq_list=
   match eq_list with
   |[] -> Some acc_sita
   |(e1, e2)::other ->
+    let e1 = BaseLogic.substitution acc_sita e1 in
+    let e2 = BaseLogic.substitution acc_sita e2 in    
     if Env.is_same env e1 e2 then solve acc_sita ~exists env other
     else
     begin
       match (e1, e2) with
-      |(Var (_, id), e)
+      |(Var (_, id), e)         (* \exists i.   (i = e) のパターン *)
            when (List.mem exists id ~equal:(=)
                  && not (S.mem id (fv_include_v e))) ->
-        let acc_sita = M.add id e acc_sita in
+        let acc_sita =
+          BaseLogic.subst_compose
+            (M.singleton id e) acc_sita 
+        in
         let exists = List.filter exists ~f:(fun id -> not (M.mem id acc_sita)) in        
         solve acc_sita ~exists env other        
       (* 引数の比較に分解するpattern *)
       |(e, Var (_, id))
            when (List.mem exists id ~equal:(=)
                  && not (S.mem id (fv_include_v e))) ->
-        let acc_sita = M.add id e acc_sita in
+        let acc_sita =
+          BaseLogic.subst_compose
+            (M.singleton id e) acc_sita
+        in
         let exists = List.filter exists ~f:(fun id -> not (M.mem id acc_sita)) in        
         solve acc_sita ~exists env other                
       |(Set (_,elms), Set (_,elms'))   ->
@@ -159,12 +247,19 @@ let rec solve acc_sita ~exists env eq_list=
       |(UF (_, head, args), UF (_, head', args'))  when head = head' ->
         solve acc_sita ~exists env ((List.zip_exn args args')@other)
       (* int-termの場合はsyntax以上の比較をしたい *)
+      |(Var (IntS, _), _) |(_ , Var (IntS, _))|(Int _, _)|(_, Int _)
       |(Times _, _) |(_, Times _) |(Plus _, _) |(_, Plus _) 
        |(Minus _, _) |(_, Minus _)|(Neg _, _) |(_, Neg _)  ->
-        (match solve_int_term acc_sita ~exists env e1 e2 with
-        |Some acc_sita ->
+        (match Env.solve_int_term  ~exists env e1 e2 with
+         |Some new_sita ->
+           let acc_sita = M.union
+                            (fun _ -> assert false)
+                            acc_sita
+                            new_sita
+           in
           let exists = List.filter exists ~f:(fun id -> not (M.mem id acc_sita)) in
           solve acc_sita ~exists env other
+            
         |None -> None)
        
       | _ -> None

@@ -68,9 +68,41 @@ module TestSolveEquality = struct
       SolveEquality.f ~exists:[i'] env [(e1, e2)]
     in
     "result of"^(problem_to_string e1 e2)^"\n"^result_to_string result |> print_string
+
+
+  let test2 () =
+    let n = Id.genid_const "n" in
+    let n_var = Var (IntS, n) in    
+    let env = SolveEquality.Env.empty
+              |> SolveEquality.Env.add (Int 0) n_var
+    in
+    match SolveEquality.f ~exists:[] env [(Int 0, n_var)] with
+    |None -> assert false
+    |Some sita ->
+      if M.is_empty sita then
+        print_string "\nSUCSESS test2: 0=n imply n=0\n"
+      else
+        assert false
     
+
+  (*  0<=n && n <= 0 imply 0? *)
+  let test3 () =
+    let n = Id.genid_const "n" in
+    let n_var = Var (IntS, n) in    
+    let env = SolveEquality.Env.empty
+              |> SolveEquality.Env.add_lower_bound (Int 0) n
+              |> SolveEquality.Env.add_upper_bound  n (Int 0)
+    in
+    match SolveEquality.f ~exists:[] env [(n_var, Int 0)] with
+    |None -> assert false
+    |Some sita ->
+      if M.is_empty sita then
+        print_string "\nSUCSESS test3: 0<=n && n <= 0 imply n= 0\n"
+      else
+        assert false
+
     
-  let f () = List.iter (fun f -> f ()) [test1]
+  let f () = List.iter (fun f -> f ()) [test1; test2; test3]
            
            
 end
@@ -297,6 +329,6 @@ end
 let _ =
   let () = TestPolynomial.f () in
   let () =  TestSolveEquality.f () in
-  let () =  TestSeq.f () in
-  let () = TestSSeq.f () in
+  (* let () =  TestSeq.f () in *)
+  (* let () = TestSSeq.f () in *)
   ()

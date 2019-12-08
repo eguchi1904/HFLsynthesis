@@ -5,9 +5,101 @@ module Seq = Base.Sequence
 type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
 let expansion_max = 1
 
+module Premise:sig
+  type t
+
+  val empty:t
+
+  val show: t -> Hfl.clause list
+
+  val add:Hfl.clause -> t -> t
+
+  val show_equality_env: t -> SolveEquality.Env.t
+
+
+
+end = struct
+
+  type t = {generalPremise:Hfl.clause list;
+            equalityPremise:SolveEquality.Env.t
+           }
+
+
+  let empty = {generalPremise = [];
+               equalityPremise = SolveEquality.Env.empty}
+            
+  let show t = t.generalPremise
+
+  let add c t = 
+    {generalPremise = c::t.generalPremise;
+     equalityPremise = match c with
+                       | `Base BaseLogic.Eq (e1, e2) ->
+                          SolveEquality.Env.add e1 e2 t.equalityPremise
+                       | _ ->
+                          t.equalityPremise
+    }
+ 
+  let show_equality_env t = t.equalityPremise
+                         
+end
+    
+module Context:sig
+  
+  type t
+
+  val empty: t
+    
+  val add_frame: premise:Premise.t
+                 -> Hfl.clause
+                 -> ?expansion:bool
+                 -> t -> t
+
+  val expansion_num: t -> int
+
+  val to_string: t -> string
+
+end= struct
+  
+  type t = {expansion_num:int;
+            stack:(Hfl.clause list * Hfl.clause) list
+           }
+
+  let empty = {expansion_num = 0;
+               stack = []
+              }
+   
+
+  let expansion_num t = t.expansion_num
+
+  let stack_to_string stack =
+    List.fold_left
+      stack
+      ~init:""
+      ~f:(fun acc (cs, c) ->
+        let frame_str =
+          Hfl.qhorn_to_string (`Horn (cs, c))
+        in
+        frame_str^"\n >>\n"^acc)
+    
+
+  let to_string t =
+    stack_to_string t.stack
+
+  let add_frame ~premise clause ?expansion:(expansion = false) t =
+    {expansion_num =
+       if expansion then t.expansion_num + 1 else t.expansion_num;
+     stack = ((Premise.show premise), clause)::t.stack
+      }
+ 
+end    
+
 module Log:sig
   val log_cha: out_channel 
   val log_solution: string -> solution -> unit
+
+  val log_equality_trial: Context.t -> Id.t list -> SolveEquality.Env.t -> (BaseLogic.t * BaseLogic.t) list -> unit
+
+  val log_result_of_equality_trial: BaseLogic.t M.t option -> unit
 
   val log_message: string -> unit
 
@@ -43,7 +135,38 @@ end = struct
         Printf.fprintf
           log_cha
           "\n%s\n" mes      
+
+  let log_equality_trial ctx (exists:Id.t list) (env:SolveEquality.Env.t) eq_cons =
+    let () = ignore env in
+    let exists_str = List.map ~f:Id.to_string_readable exists
+                     |> String.concat ","
+    in
+    let eq_cons_str =
+      List.map
+        ~f:(fun (e1, e2) ->
+          (BaseLogic.p2string e1)^"="^(BaseLogic.p2string e2))
+        eq_cons
+      |> String.concat ";"
+    in
+    Printf.fprintf
+      log_cha
+      "EQUALITY TRIAL: \n context\n%s\n======\nexist:%s.\n equality:[%s]\n=====\n="
+      (Context.to_string ctx) exists_str eq_cons_str
+
     
+  let result_to_string = function
+    |None -> "no solution"
+    |Some sita ->
+      M.fold
+        (fun i e acc ->
+          (Id.to_string_readable i)^"-->"^(BaseLogic.p2string e)^"; "^acc)
+        sita
+        ""
+
+  let log_result_of_equality_trial sita_opt =
+  
+    output_string log_cha ("equality result: "^(result_to_string sita_opt))
+      
     
 end
 
@@ -162,78 +285,6 @@ let rec bind_solutions
   )
                       
 
-module Premise:sig
-  type t
-
-  val empty:t
-
-  val show: t -> Hfl.clause list
-
-  val add:Hfl.clause -> t -> t
-
-  val show_equality_env: t -> SolveEquality.Env.t
-
-
-
-end = struct
-
-  type t = {generalPremise:Hfl.clause list;
-            equalityPremise:SolveEquality.Env.t
-           }
-
-
-  let empty = {generalPremise = [];
-               equalityPremise = SolveEquality.Env.empty}
-            
-  let show t = t.generalPremise
-
-  let add c t = 
-    {generalPremise = c::t.generalPremise;
-     equalityPremise = match c with
-                       | `Base BaseLogic.Eq (e1, e2) ->
-                          SolveEquality.Env.add e1 e2 t.equalityPremise
-                       | _ ->
-                          t.equalityPremise
-    }
- 
-  let show_equality_env t = t.equalityPremise
-                         
-end
-
-module Context:sig
-  
-  type t
-
-  val empty: t
-    
-  val add_frame: premise:Premise.t
-                 -> Hfl.clause
-                 -> ?expansion:bool
-                 -> t -> t
-
-  val expansion_num: t -> int
-
-end= struct
-  
-  type t = {expansion_num:int;
-            stack:(Hfl.clause list * Hfl.clause) list
-           }
-
-  let empty = {expansion_num = 0;
-               stack = []
-              }
-   
-  let add_frame ~premise clause ?expansion:(expansion = false) t= 
-    {expansion_num =
-       if expansion then t.expansion_num + 1 else t.expansion_num;
-     stack = ((Premise.show premise), clause)::t.stack
-    }
-
-  let expansion_num t = t.expansion_num
-      
-    
-
-end    
 
 let rec separate_toplevel_apps (clause:Hfl.clause) =
   match clause with
@@ -351,9 +402,14 @@ and solve_equality_inequality_constraints:
       List.map ~f:fst binds
       |> List.filter ~f:(fun id -> not (M.mem id sita))
     in
-    match SolveEquality.f ~exists:exists_for_solve_eq equality_env eq_cons with (* ここには非決定性がないはずなので *)
+    let () = Log.log_equality_trial ctx exists_for_solve_eq equality_env eq_cons in
+    let eq_trial_result =
+      SolveEquality.f ~exists:exists_for_solve_eq equality_env eq_cons
+    in
+    match eq_trial_result with (* ここには非決定性がないはずなので *)
     |None -> Seq.empty
     |Some sita' ->
+      (* まず、unionは違うだろ *)
       let sita = M.union (fun _ -> assert false) sita sita' in
       (* in_eq_consをどうにかする *)
        solve_inequality_constraints
@@ -450,9 +506,29 @@ and solve_application_by_expand:
                 Context.add_frame
                   ~premise head_spec_result ~expansion:true ctx
               in
-              eliminate_app ctx sita ~exists:binds ep ~premise head_spec_result
-              |> Seq.map        (* 展開で出てきた新規のexists'を追加する、existsが追加されるのはここのみ *)
-                   ~f:(fun (sita, exists, horns) -> (sita, (exists'@exists), horns))
+              let expand_solutions =
+                eliminate_app ctx sita ~exists:binds ep ~premise head_spec_result
+              in
+              (* expandして、結果existが増えることは許さない *)
+              Seq.unfold_step
+                ~init:expand_solutions
+                ~f:(fun expand_solutions ->
+                  match Seq.next expand_solutions with
+                  |Some ((sita, exists, horns), next) ->
+                    let horns =
+                      List.map ~f:(subst_base_term_horn sita) horns
+                    in
+                     if
+                       List.for_all
+                         horns
+                         ~f:(is_exists_free_horn ~exists:exists')
+                     then
+                       let exists=(exists:> (Id.t * Hfl.sort)list) in
+                       Seq.Step.Yield ((sita, exists, horns),next)
+                     else
+                       Seq.Step.Skip next
+                  | None -> Seq.Step.Done
+                )
            | _ -> invalid_arg "solve_application_expand:not yet impl")
       )
   )
@@ -491,7 +567,7 @@ and solve_application_list:
     bind_solutions
       sita apps ~premise:(Premise.show premise) ~exists:binds
       ~f:(fun sita app ->
-        let ctx = Context.add_frame ~premise (`App app) ctx in
+        (* let ctx = Context.add_frame ~premise (`App app) ctx in *)
         solve_application_expand_if_fail ctx sita ~exists:binds ep ~premise app)
   )
 
@@ -520,8 +596,8 @@ and eliminate_app_from_or_clause_list
     sita ~premise:premise_clauses ~exists:binds
     or_clauses
     ~f:(fun sita or_clause ->
-      let ctx = Context.add_frame
-                  ~premise (or_clause:>Hfl.clause) ctx in
+      (* let ctx = Context.add_frame *)
+      (*             ~premise (or_clause:>Hfl.clause) ctx in *)
       eliminate_app_from_or_clause
              ctx sita ~exists:binds ep ~premise or_clause)
 

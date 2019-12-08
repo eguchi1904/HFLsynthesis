@@ -7,6 +7,11 @@ sig
      
   val add: BaseLogic.t -> BaseLogic.t -> t -> t
 
+  val add_upper_bound: Id.t -> BaseLogic.t -> t -> t
+
+  val add_lower_bound: BaseLogic.t -> Id.t -> t -> t        
+
+
   (* 単純に同値類に含まれているかを確認する *)
   (* len x = len y を確かめるためにx=yを検討する、などはしない。 *)
 

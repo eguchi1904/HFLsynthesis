@@ -337,7 +337,7 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
         |Some (solution, body') ->
           let () =
             Log.log_solution
-              "FOUND solution:\n"            
+              "\nFOUND solution:\n"            
               solution
           in
           Base.Sequence.Step.Yield (solution,

@@ -156,7 +156,7 @@ let rec to_string_abs (`Abs (args, body))=
      "fun "^args_str^" ->"^(clause_to_string body)      
     
 and clause_to_string = function
-  | `Base base -> "("^(BaseLogic.p2string base)^")"
+  | `Base base -> (BaseLogic.p2string base)
   | `Abs _ as abs -> to_string_abs abs
   | `App {head = head; params = params; args = args} ->
      let params_str = params
@@ -164,7 +164,7 @@ and clause_to_string = function
                       |> String.concat " "
      in
      let args_str =  args
-                      |> List.map (fun p -> "("^(clause_to_string p)^")")
+                      |> List.map (fun p -> (clause_to_string p))
                      |> String.concat " "
      in
      String.concat " " [(Id.to_string_readable head); params_str; args_str]
