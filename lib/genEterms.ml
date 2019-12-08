@@ -285,8 +285,51 @@ let mk_arg_specs:(Id.t * Hfl.sort * Hfl.horn list) list
 (* synthesis main *)
 (* ************************************************** *)
 
+let gen_vars_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
+      -> Spec.t -> (Program.e * upProp * AbductionCandidate.t) Seq.t  =
+    (fun ctx ep penv abduction_candidates spec ->
+      let unknown_var = Id.genid_const "?sclar" in
+      let ctx = Context.push_head unknown_var [] ctx in
+      let abduction_condition =
+        AbductionCandidate.get abduction_candidates in
+      let penv' = PathEnv.add_condition_list
+                    (List.map (fun e -> `Base e) abduction_condition)
+                    penv
+      in
+      let sort = Hfl.cast2baseSort spec.sort in
+      let leaf_prop = hfl_prop_of_leaf ep unknown_var sort in
+      let consistence = check_consistency_opt penv leaf_prop spec in
+      if not consistence then Seq.empty
+      else
+        let `Exists (_, leaf_prop_body) = leaf_prop in
+        let horns = List.map
+                      (fun (`Horn(cs, c)) ->
+                        `Horn (leaf_prop_body@cs, c))
+                      spec.valid
+        in
+        let cons =
+          Constraint.make
+            ep
+            ~exists:[(unknown_var, sort)]                       
+            ~premise:(PathEnv.extract_condition penv')
+            ~horns
+        in
+        let trial_mes = Log.gen_trial_string ctx abduction_candidates penv cons in
+        let solutions_seq = Constraint.solve ~start_message:trial_mes cons in
+        Seq.filter_map
+          solutions_seq
+          ~f:(fun (sita, exists_horn) ->
+            if exists_horn = [] then
+              match M.find_opt unknown_var sita with
+              |Some e -> Some ((Program.Formula e), leaf_prop, abduction_candidates)
+              |None -> assert false
+            else
+              None)
+    )
+
 (* do memo *)
-let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
+let gen_vars_by_enumeration:
+      Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
               -> (Id.t * Hfl.baseSort) list -> Spec.t
               -> (Program.e * upProp * AbductionCandidate.t) Seq.t = 
   (fun ctx ep penv abduction_candidates scalar_heads spec ->
@@ -346,13 +389,18 @@ let gen_vars: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
   )
 
 
+let gen_vars ctx ep penv abduction_candidates scalar_heads spec =
+  Seq.append
+    (gen_vars_directory ctx ep penv abduction_candidates spec)
+    (gen_vars_by_enumeration ctx ep penv abduction_candidates scalar_heads spec)
+
 
 let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> (Id.t * Spec.t ) list
                   -> int
                   -> ((Id.t * (Program.e * upProp)) list * AbductionCandidate.t) SSeq.t = 
   (fun ctx ep penv abduction_candidate arg_specs size_sum ->
     let arg_num = List.length arg_specs in
-    if size_sum < arg_num then SSeq.empty 
+    if size_sum < arg_num then assert false
     else
       match arg_specs with
       |[] -> assert false
@@ -493,24 +541,34 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
                    ctx                 
                    args
                in
-               let exists_var_specs =
-                 mk_arg_specs exists_horns head
-               in
-               let generate_args_num =
-                 M.filter (fun x _ -> List.mem_assoc x args) sita
-                 |> M.cardinal
-               in
-               let exists_var_instances =
-                 gen_args
-                   ctx ep penv abduction_candidate exists_var_specs
-                   ((size - 1) - generate_args_num)
-               in
-               SSeq.map
-                 exists_var_instances
-                    ~size_diff:1
-                    ~f:(fun (gen_instances, abduction_candidate) ->
-                      consist_app_term_from_exists_var_instances
-                        head head_spec sita gen_instances abduction_candidate
+               if exists_horns = [] then (* 引数を生成する必要なし *)
+                 let gen_term =
+                   consist_app_term_from_exists_var_instances
+                     head head_spec sita [] abduction_candidate
+                 in
+                 SSeq.append_sequence
+                   (Seq.singleton gen_term)
+                   ~size:(arity+1)
+                   SSeq.empty
+               else
+                 let exists_var_specs =
+                   mk_arg_specs exists_horns head
+                 in
+                 let generate_args_num =
+                   M.filter (fun x _ -> List.mem_assoc x args) sita
+                   |> M.cardinal
+                 in
+                 let exists_var_instances =
+                   gen_args
+                     ctx ep penv abduction_candidate exists_var_specs
+                     ((size - 1) - generate_args_num)
+                 in
+                 SSeq.map
+                   exists_var_instances
+                   ~size_diff:1
+                   ~f:(fun (gen_instances, abduction_candidate) ->
+                     consist_app_term_from_exists_var_instances
+                       head head_spec sita gen_instances abduction_candidate
              ))
            |>
              SSeq.concat ~min_size:(arity +1)
@@ -518,7 +576,7 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
        |_ -> assert false
       )
   )
-        
+  
         
 
   

@@ -170,7 +170,7 @@ end = struct
       "==================================================EQUALITY TRIAL: \n context\n%s\n======\nexist:%s.\n equality:%s => [%s]\n=====\n"
       (Context.to_string ctx) exists_str eq_env_str eq_cons_str
 
-    
+  let log_equality_trial ctx (exists:Id.t list) (env:SolveEquality.Env.t) eq_cons = ()    
   let result_to_string = function
     |None -> "no solution"
     |Some sita ->
@@ -313,6 +313,23 @@ let rec separate_toplevel_apps (clause:Hfl.clause) =
   | e -> ([], [e])
 
 
+let rec separete_toplevel_eq (clause:Hfl.clause) =
+  match clause with
+  | `Base (BaseLogic.Eq (e1, e2)) ->
+     ([(e1, e2)], [])
+  | `And (c1, c2) ->
+     let eq_cons1, cs1 = separete_toplevel_eq c1 in
+     let eq_cons2, cs2 = separete_toplevel_eq c2 in
+     (eq_cons1@eq_cons2, cs1@cs2)
+  | e -> ([], [e])
+
+let rec separete_toplevel_eq_from_list cs =
+  let eq_cs_list_list, other_cs_list_list =
+    (List.map ~f:separete_toplevel_eq cs)
+    |> List.unzip
+  in
+  (List.concat eq_cs_list_list, List.concat other_cs_list_list)
+  
 
 
 let decompose_abst_terms_implication (`Abs (args1, body1)) (`Abs (args2, body2)) =
@@ -621,7 +638,7 @@ and eliminate_app_from_or_clause_list
 
 and eliminate_app ctx sita ~exists:binds ep ~premise clause =
   let toplevel_apps, other_clauses = separate_toplevel_apps clause in
-
+  let eq_cons, other_clauses = separete_toplevel_eq_from_list other_clauses in
   let or_clauses_with_app_term, other_clauses =
     List.partition_map
       other_clauses
@@ -630,6 +647,15 @@ and eliminate_app ctx sita ~exists:binds ep ~premise clause =
                         `Fst c  else `Snd c
                    | (_ as c) -> `Snd c)
   in
+  let exists_for_solve_eq =
+          List.map ~f:fst binds
+          |> List.filter ~f:(fun id -> not (M.mem id sita))
+  in
+  let eq_env = (Premise.show_equality_env premise) in
+  match SolveEquality.f ~exists:exists_for_solve_eq eq_env eq_cons with
+  |None -> Seq.empty
+  |Some sita' ->
+    let sita = M.union (fun _ -> assert false) sita sita' in
   bind_solutions
     sita ~premise:(Premise.show premise) ~exists:binds
     [ `Toplevel_apps toplevel_apps;

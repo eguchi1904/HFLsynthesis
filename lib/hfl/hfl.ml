@@ -34,7 +34,7 @@ let is_baseSort (sort:sort) =
 let cast2baseSort (sort:sort) =
   match sort with
   | `BoolS | `IntS | `DataS _ | `SetS _ as base_sort -> base_sort
-  | _ -> invalid_arg "cast2baseSort"
+  | _ -> invalid_arg ("cast2baseSort:"^(sort2string sort))
       
 
 let gen_funSort (sort1:sort) (sort2:sort) =
@@ -598,7 +598,9 @@ end
     arr.(Id.to_int id) <- Some (fix_op_opt, horn)
     
   let find arr id =
-    arr.(Id.to_int id)
+    if (Id.to_int id) >= 1000 then None
+    else
+      arr.(Id.to_int id)
 
   let find_sort arr id =
     match find arr id with

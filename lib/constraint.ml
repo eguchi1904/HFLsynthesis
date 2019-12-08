@@ -342,7 +342,8 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
           in
           Base.Sequence.Step.Yield (solution,
                                       (i+1, body'))
-       )
+    )
+  |> Base.Sequence.memoize
   
   
       

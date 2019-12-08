@@ -224,34 +224,38 @@ let generator data_env qualifiers e_max_size =
             in
             Some (new_x, clause'))
        | _ -> None
-          
+
+            
+     let fresh_by_fresh_tbl fresh_tbl clause' =
+       List.fold_left 
+         (fun acc (x,x') -> Hfl.replace x x' acc)
+         clause'                    
+         fresh_tbl
        
      let rec mk_rec_spec_qhorn  args qhorn =
        match qhorn with
        | `Horn (pre_cs, c) ->
           assert (List.length pre_cs = List.length args);
-          let inductive_arg_exist, args_cs' =
+          let inductive_arg_exist, args_cs', fresh_tbl =
             List.fold_left2
-              (fun (inductive_arg_exist,acc) (x,sort) clause ->
+              (fun (inductive_arg_exist,acc, fresh_tbl) (x,sort) clause ->
                 match inductive_arg (x,sort) clause with
                 |Some (x', clause')when (not inductive_arg_exist) ->
-                  (true, acc@[(x', clause')])
+                  (* fresh tblで更新 *)
+                  let clause' = fresh_by_fresh_tbl fresh_tbl clause'
+                  in
+                  let fresh_tbl = (x,x')::fresh_tbl in
+                  (true, acc@[(x', clause')], fresh_tbl)
                 |_ ->
                   let new_x = Id.genid_from_id x in
-                  let clause' = Hfl.replace x new_x clause in
-                  (inductive_arg_exist, acc@[(new_x, clause')]))
-            (false, [])            
+                  let fresh_tbl = (x, new_x)::fresh_tbl in
+                  let clause' = fresh_by_fresh_tbl fresh_tbl clause in
+                  (inductive_arg_exist, acc@[(new_x, clause')], fresh_tbl))
+            (false, [],[])            
             args
             pre_cs
           in
-          let c' =
-            List.fold_left2
-              (fun acc (x,_) (new_x, _) ->
-                Hfl.replace x new_x acc)
-              c
-              args
-            args_cs'
-          in
+          let c' = fresh_by_fresh_tbl fresh_tbl c in
           let pre_cs' = List.map snd args_cs' in
           let args' = List.map2
                         (fun (new_x, _) (_, sort) -> (new_x, sort))
@@ -309,6 +313,7 @@ let generator data_env qualifiers e_max_size =
          match qhorn with
          | `Horn(cs, c) ->
             let penv = PathEnv.add_condition_list cs penv in
+            let sort = (Hfl.return_sort sort:> Hfl.sort) in
             let b = gen_b_term ep penv abduction_candidate sort ~spec:[`Horn ([], c)] in
             Program.PRecFun (name, args, b)
          | _ -> assert false    (* not impl *)
