@@ -101,6 +101,10 @@ module TestSolveEquality = struct
       else
         assert false
 
+  (* \exists. sclar,v1,v2.(n>=0; sclar = _v => _v = v1 + v2)  *)
+  let test4 () = ()
+    
+
     
   let f () = List.iter (fun f -> f ()) [test1; test2; test3]
            

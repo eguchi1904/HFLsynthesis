@@ -295,6 +295,14 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
     Base.Sequence.map
       solutions
       ~f:(fun (sita, new_exists, horns) ->
+        (* hornsに出現するもののみをのこす *)
+        let new_exists =
+          new_exists
+        |>List.filter
+            (fun (x,_) -> not (M.mem x sita))
+          |>List.filter
+              (fun (x,_) -> List.exists (fun horn -> S.mem x (Hfl.fv_horn horn)) horns)
+        in
         let () =
           Log.log_appElimination_solution
               "\nFOUND app elmination solution:\n"            

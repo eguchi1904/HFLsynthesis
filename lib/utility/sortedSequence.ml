@@ -83,6 +83,7 @@ let generator ~size_max =
             (i+1, Seq.append seq t_elm)
           else
             (i+1, t_elm))
+  |> Seq.memoize
 
  
   (* 頑張ろうな *)
@@ -109,7 +110,7 @@ let generator ~size_max =
           else
             Some (Seq.concat heads_seq, ((i+1), tls_seq)))
 
-
+    |> Seq.memoize    
 
                     
   let map t ~f ~size_diff:added_size =
@@ -119,7 +120,7 @@ let generator ~size_max =
                ~f:(fun seq -> Seq.map ~f:f seq)
                t
     in
-    shift_right added_size t'
+    shift_right added_size t' |> Seq.memoize
 
   let single_size t = Seq.hd t
 

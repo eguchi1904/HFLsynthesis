@@ -37,6 +37,7 @@ let rec to_string_e e =
            (function
             |App {head = arg_head; args = []} ->
               (Id.to_string_readable arg_head)
+            |Formula formula -> BaseLogic.p2string formula
             | arg -> 
                "("^(to_string_e arg)^")")
 

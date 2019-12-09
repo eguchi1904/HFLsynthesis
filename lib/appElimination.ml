@@ -269,7 +269,7 @@ let rec pre_check_horns sita ~premise ~exists horns =
 (* 結果をandでまとめる *)
 (* この時に、T/Fが判定できるhornは先に判定する。この判定は良い感じに遅延される *)
 (* existsは新たな差分を返す *)
-
+(* fが出力するものはpre_check　済みだと過程 *)
 
 let rec bind_solutions' =
   (fun sita ~premise ~exists l ~f acc_exists acc_horns ->
@@ -298,7 +298,7 @@ let rec bind_solutions
          -> f:(BaseLogic.t M.t -> 'a -> solution Seq.t)
          -> solution Seq.t =
   (fun sita ~premise ~exists l ~f ->
-    bind_solutions' sita ~premise ~exists l ~f [] []
+    bind_solutions' sita ~premise ~exists l ~f [] [] |> Seq.memoize
   )
                       
 
@@ -319,9 +319,9 @@ let rec separete_toplevel_eq ~exists (clause:Hfl.clause) =
   match clause with
   | `Base (Eq (e1, e2)) ->
      (match e1, e2 with
-      |Var (_, x), _ when List.mem exists x ~equal:(=) -> 
+      |Var (IntS, x), _ (* when List.mem exists x ~equal:(=) *) -> 
         ([(e1, e2)], [])
-      |_ , Var (_, x) when List.mem exists x ~equal:(=) -> 
+      |_ , Var (IntS, x) (* when List.mem exists x ~equal:(=) *) -> 
         ([(e1, e2)], [])
       | _ -> ([], [clause]))
   | `And (c1, c2) ->
@@ -461,7 +461,6 @@ and solve_equality_inequality_constraints:
 
 (* 結論からapplicationのtermを消し去りたい。 *)
 (* rDataはいらない、ということにしようとり会えず *)
-(* これ本当は、Seqを返すとするのが良いんだろうな。まずは動かしたいのであれだけど *)
 and solve_application:
       Context.t
       -> BaseLogic.t M.t
@@ -497,13 +496,18 @@ and solve_application:
                    && not (M.mem x sita))
          (Hfl.fv (`App app))
     then
+      (* 最後に、未解決のママにするという選択肢を *)
       Seq.append
         solutions_for_ineq_constraints
         (Seq.singleton (sita, [], [`Horn ([],(`App app))]))
     else
       solutions_for_ineq_constraints
   )
-  
+
+
+and is_fowarded_by_expansion sita_before sita_after horns =
+  (M.cardinal sita_before) < (M.cardinal sita_after)
+  ||horns = []
 
 and solve_application_by_expand:
       Context.t
@@ -550,24 +554,36 @@ and solve_application_by_expand:
               let expand_solutions =
                 eliminate_app ctx sita ~exists:binds ep ~premise head_spec_result
               in
-              (* expandして、結果existが増えることは許さない *)
+
               Seq.unfold_step
                 ~init:expand_solutions
                 ~f:(fun expand_solutions ->
                   match Seq.next expand_solutions with
-                  |Some ((sita, exists, horns), next) ->
-                    let horns =
-                      List.map ~f:(subst_base_term_horn sita) horns
-                    in
-                     if
-                       List.for_all
-                         horns
-                         ~f:(is_exists_free_horn ~exists:exists')
-                     then
-                       let exists=(exists:> (Id.t * Hfl.sort)list) in
-                       Seq.Step.Yield ((sita, exists, horns),next)
+                  |Some ((sita_after_expand, exists, horns), next) ->
+                    (* expandして、結果existが増えることを許すなら->  *)
+                    if (is_fowarded_by_expansion sita sita_after_expand horns) then
+                      let exists=(exists:> (Id.t * Hfl.sort)list) in
+                      Seq.Step.Yield ((sita_after_expand,
+                                       exists'@exists,
+                                       horns),
+                                      next)
                      else
                        Seq.Step.Skip next
+                    
+                    (* Seq.Step.Yield ((sita, exists'@exists, horns),next) *)
+                  (* expandして、結果existが増えることは許さないなら->  *)
+                  (* let horns = *)
+                  (*     List.map ~f:(subst_base_term_horn sita_after_expand) horns *)
+                  (*   in *)
+                  (*    if *)
+                  (*      List.for_all *)
+                  (*        horns *)
+                  (*        ~f:(is_exists_free_horn ~exists:exists') *)
+                  (*    then *)
+                  (*      let exists=(exists:> (Id.t * Hfl.sort)list) in *)
+                  (*      Seq.Step.Yield ((sita_after_expand, exists, horns),next) *)
+                  (*    else *)
+                  (*      Seq.Step.Skip next *)
                   | None -> Seq.Step.Done
                 )
            | _ -> invalid_arg "solve_application_expand:not yet impl")
@@ -588,6 +604,7 @@ and solve_application_expand_if_fail:
    if Context.expansion_num ctx >= expansion_max then
      direct_solutions
    else
+     (* ここに、成功した場合はexpansionを作らないというのがいる？ *)
      let expand_solutions =
        solve_application_by_expand ctx sita ~exists:binds ep ~premise app
      in
@@ -704,5 +721,5 @@ let f sita ~exists:binds ep premise_clauses clause =
                List.map ~f:(subst_base_term_horn sita) horns in
              Seq.singleton (sita, new_exists, horns))
   in
-  body
+  body|> Seq.memoize
   (* debugのために、sequenceの探索に入った時にlogをとる。 *)

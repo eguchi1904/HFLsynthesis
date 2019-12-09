@@ -143,7 +143,7 @@ let rec p2string e =
   |Int i -> string_of_int i
   |Set (_,ts) ->let ts_string = String.concat ", " (List.map p2string ts) in
                 Printf.sprintf "[%s]" ts_string
-  |Var (_,id) ->Printf.sprintf "%s " (Id.to_string_readable id)
+  |Var (_,id) ->Printf.sprintf "%s" (Id.to_string_readable id)
  |Unknown (senv, _, sita, id)->
     let sita_list = M.bindings sita in
     let sita_str_list = List.map
@@ -169,11 +169,11 @@ let rec p2string e =
   |If (t1,t2,t3) ->
     Printf.sprintf "if(%s)then %s else %s" (p2string t1) (p2string t2) (p2string t3)
   |Times (t1,t2) ->
-    Printf.sprintf "(%s * %s)" (p2string t1) (p2string t2)
+    Printf.sprintf "(%s*%s)" (p2string t1) (p2string t2)
   |Plus (t1,t2) ->
-    Printf.sprintf "(%s + %s)" (p2string t1) (p2string t2)
+    Printf.sprintf "(%s+%s)" (p2string t1) (p2string t2)
   |Minus (t1,t2) ->
-    Printf.sprintf "(%s - %s)" (p2string t1) (p2string t2)
+    Printf.sprintf "(%s-%s)" (p2string t1) (p2string t2)
   |Eq (t1,t2) ->
     Printf.sprintf "(%s == %s)" (p2string t1) (p2string t2)
   |Neq (t1,t2) ->
