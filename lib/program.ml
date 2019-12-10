@@ -49,7 +49,7 @@ let fv_e_with_sort e =
     
                        
   
-
+  
   
 (* なんか頭が悪いことをしている気がするが...
    BaseLogic.t をe termで使うために
@@ -68,7 +68,7 @@ let rec term_to_string atom_ids str_env term =
               arg_str
             else
               "("^arg_str^")"
-          |None -> assert false)
+          |None -> "?"^(Id.to_string_readable arg_id))
         args
       |> String.concat " "
     in
@@ -112,6 +112,33 @@ let rec to_string_e_rec atom_ids str_env = function
 let to_string_e e =
   to_string_e_rec S.empty M.empty e
     
+
+
+let term_to_string_direct = function
+  |App {head = head; args = args} ->
+    let arg_str =
+      List.map (fun (x,_) -> Id.to_string_readable  x) args
+      |> String.concat " "
+    in
+    (Id.to_string_readable head)^" "^arg_str
+  |Formula e -> BaseLogic.p2string e
+
+
+              
+(* dは開業した時の indent *)
+let rec to_string_e_direct d e=
+  let indent = String.make d ' ' in
+  match e with
+  |Let (x,_, e1, e2) ->
+    "let "^(Id.to_string_readable x)^" = "
+    ^(to_string_e_direct (d+2) e1)^" in \n"^
+      indent^(to_string_e_direct d e2)
+  |Term term ->
+    term_to_string_direct term
+
+    
+    
+                             
     
   
 let rec to_string_b d b =
@@ -127,10 +154,10 @@ let rec to_string_b d b =
               List.map (to_string_case (d+2)) cases
               |> String.concat "\n"
             in
-            "match "^(to_string_e e)^" with\n"
+            "match "^(to_string_e  e)^" with\n"
             ^cases_str
 
-          |PE e -> (to_string_e e)
+          |PE e -> (to_string_e  e)
          )
 
 and to_string_case d {constructor = cons; argNames = args; body = b} =
