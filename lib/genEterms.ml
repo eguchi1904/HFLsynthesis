@@ -58,7 +58,6 @@ module Context:sig
 
 end = struct
 
-
   type frame = {head:Id.t;
                 formalArgs: Id.t list;
                 realArgs: (Id.t * Program.e) list
@@ -99,7 +98,7 @@ end = struct
           match List.assoc_opt x real_args with
           |Some e ->
             (match e with
-             |Program.App {args = [];_} -> 
+             |Program.Term (Program.App {args = [];_}) -> 
                (Program.to_string_e e)
              |_ ->
                "("^(Program.to_string_e e)^")"
@@ -264,10 +263,14 @@ let exists_variable_occur_check (func_spec:Hfl.Equations.func_spec) =
    からspecを構成する
  *)
 let mk_arg_specs:(Id.t * Hfl.sort * Hfl.horn list) list
-                 -> Id.t 
+                 -> Program.term
                  -> (Id.t * Spec.t) list
-  = (fun exists_horns head -> 
-    let v' = Id.genid (Id.to_string_readable head) in
+  = (fun exists_horns return_term ->
+    let v' =
+      match return_term with
+      |App {head = head;_} -> Id.genid (Id.to_string_readable head)
+      |Formula _ -> Id.genid "ret_var"
+    in
     List.map
       (fun (x, sort, horns) ->
         let horns =
@@ -335,7 +338,7 @@ let gen_vars_by_enumeration:
                      let valid = Constraint.is_valid ~start_message:trial_mes cons in
                      let () = Log.log_trial_result  valid in
                      if  valid then
-                       let var_term = Program.App {head = id; args = []} in
+                       let var_term = Program.Term (Program.App {head = id; args = []}) in
                        Seq.Step.Yield ((var_term,
                                         leaf_prop,
                                         abduction_candidate),
@@ -400,7 +403,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
     )
 
 and consist_up_prop_from_args_up_prop
-      (head_spec:Hfl.Equations.func_spec) arg_up_prop = 
+      (ret_spec:Hfl.clause) arg_up_prop = 
   let binds = [] in             (* negativeのexistsなので現状サボっている *)
   let args_prop =
     arg_up_prop
@@ -412,16 +415,16 @@ and consist_up_prop_from_args_up_prop
     |>
       List.concat
   in
-  `Exists (binds, head_spec.retSpec::args_prop) 
+  `Exists (binds, ret_spec::args_prop) 
                                                                   
   
   
 (* ここのinstanceには、head_spec.argsでないものも含まれる *)
-and consist_app_term_from_exists_var_instances
-      head (head_spec:Hfl.Equations.func_spec)
-      sita (gen_instances:(Id.t * (Program.e * upProp)) list) abduction_candidate =
-  let arg_e_terms_up_prop =
-    head_spec.args
+and consist_term_from_exists_var_instances
+  return_term return_prop
+  ~instances:(sita, (gen_instances:(Id.t * (Program.e * upProp)) list)) abduction_candidate =
+  let instanced_terms_up_prop =
+    (Program.fv_term_with_sort return_term)
     |>
       List.map
         (fun (x, sort) ->
@@ -435,40 +438,74 @@ and consist_app_term_from_exists_var_instances
                                    e_x))]
                       )
             in
-            (Program.Formula e_x, (x, prop))
+            ((x, sort, Program.Term (Program.Formula e_x)), (x, prop))
           |None ->
             (match List.assoc_opt x gen_instances with
-             |Some (term, prop) -> (term, (x,prop))
+             |Some (term, prop) -> ((x,sort,term), (x,prop))
              |None -> assert false)
         )
   in
-  let arg_e_terms, arg_up_props = List.split arg_e_terms_up_prop in
+  let arg_e_terms, arg_up_props = List.split instanced_terms_up_prop in
   let up_prop = consist_up_prop_from_args_up_prop
-                  head_spec arg_up_props
+                  return_prop arg_up_props
   in
-  let app_term = Program.App {head = head; args = arg_e_terms} in
-  (app_term, up_prop, abduction_candidate)
+  let e_term =
+    List.fold_right
+      (fun (x, sort, e_x) acc_e_term ->
+        Program.Let (x, sort, e_x, acc_e_term))
+      arg_e_terms
+      (Program.Term return_term)
+  in
+  (e_term, up_prop, abduction_candidate)
 
   
-and gen_app_term_from_arg_horns
-      ctx ep penv abduction_candidate head (head_spec:Hfl.Equations.func_spec) sita exists_horns size =
-  let generate_args_num =
-    M.filter (fun x _ -> List.mem_assoc x head_spec.args) sita
+and gen_term_from_exists_horn
+      ctx ep penv abduction_candidate return_term return_prop sita exists_horns size =
+  let generate_args_by_sita =
+    M.filter (fun x _ -> S.mem x (Program.fv_term return_term)) sita
+  in
+  let generate_args_by_sita_num =       (* sitaで生成された数 *)
+    generate_args_by_sita
     |> M.cardinal  in
-  let exists_var_specs =
-  mk_arg_specs exists_horns head
+  (assert (generate_args_by_sita_num + (List.length exists_horns) + 1 <= size));
+  let ctx =        (* context更新 *)
+    M.fold
+      (fun x _  acc ->
+        match M.find_opt x sita with
+        |Some e -> Context.push_arg x (Program.Term (Program.Formula e)) acc
+        |None -> acc)
+      generate_args_by_sita    
+      ctx                 
+  in  
+  if exists_horns = [] then (* 引数を生成する必要なし *)
+    let gen_e, _, _ as gen_term =
+      consist_term_from_exists_var_instances
+        return_term return_prop ~instances:(sita, []) abduction_candidate
     in
-    let exists_var_instances =
-      gen_args
-        ctx ep penv abduction_candidate exists_var_specs
-        ((size - 1) - generate_args_num)
+    let gen_e_size = Program.size_e gen_e in
+    (assert (gen_e_size = generate_args_by_sita_num + 1));
+    SSeq.append_sequence
+      (Seq.singleton gen_term)
+      ~size:(gen_e_size)
+      SSeq.empty
+  else if List.length exists_horns+ generate_args_by_sita_num+ 1 > size then
+    SSeq.empty
+  else
+  let exists_var_specs =
+    mk_arg_specs exists_horns return_term
+  in
+  let exists_var_instances =
+    gen_args
+      ctx ep penv abduction_candidate exists_var_specs
+      ((size - 1) - generate_args_by_sita_num)
     in
     SSeq.map
       exists_var_instances
-      ~size_diff:1
+      (* exists_hornで生成した引数 + sitaで生成した引数 + head *)
+      ~size_diff:(generate_args_by_sita_num + 1) 
       ~f:(fun (gen_instances, abduction_candidate) ->
-        consist_app_term_from_exists_var_instances
-          head head_spec sita gen_instances abduction_candidate
+        consist_term_from_exists_var_instances
+          return_term return_prop ~instances:(sita, gen_instances) abduction_candidate
       )
           
 and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Spec.t
@@ -505,33 +542,9 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
            Seq.map
              solutions_seq
              ~f:(fun (sita, exists_horns) ->
-               let ctx =        (* context更新 *)
-                 List.fold_left
-                   (fun acc (x, _) ->
-                     match M.find_opt x sita with
-                     |Some e -> Context.push_arg x (Program.Formula e) acc
-                     |None -> acc)
-                   ctx                 
-                   args
-               in
-               let generate_args_num =
-                 M.filter (fun x _ -> List.mem_assoc x args) sita
-                 |> M.cardinal
-               in
-               if exists_horns = [] then (* 引数を生成する必要なし *)
-                 let gen_term =
-                   consist_app_term_from_exists_var_instances
-                     head head_spec sita [] abduction_candidate
-                 in
-                 SSeq.append_sequence
-                   (Seq.singleton gen_term)
-                   ~size:(arity+1)
-                   SSeq.empty
-               else if List.length exists_horns+ generate_args_num+ 1 > size then
-                 SSeq.empty
-               else
-                 gen_app_term_from_arg_horns
-                   ctx ep penv abduction_candidate head head_spec sita exists_horns size
+               let return_term = Program.App {head = head; args = args} in
+               gen_term_from_exists_horn
+                 ctx ep penv abduction_candidate return_term ret_spec sita exists_horns size
              )
            |>
              SSeq.concat ~min_size:(arity +1)
@@ -539,7 +552,6 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
        |_ -> assert false
       )
   )
-  
         
 
   
@@ -574,9 +586,9 @@ and f ctx ep penv abduction_candidate spec size =
 
 
 
-let gen_vars_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
-      -> Spec.t -> (Program.e * upProp * AbductionCandidate.t) Seq.t  =
-    (fun ctx ep penv abduction_candidates spec ->
+let gen_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t
+      -> Spec.t -> int -> (Program.e * upProp * AbductionCandidate.t) SSeq.t  =
+    (fun ctx ep penv abduction_candidates spec size ->
       (* let unknown_var = Id.genid_const "?sclar" in *)
       let ctx = Context.push_head Id.valueVar_id [] ctx in
       let abduction_condition =
@@ -602,22 +614,26 @@ let gen_vars_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCa
         let solutions_seq = Constraint.solve ~start_message:trial_mes cons in
         Seq.filter_map
           solutions_seq
-          ~f:(fun (sita, exists_horn) ->
+          ~f:(fun (sita, exists_horns) ->
             (* ここでxists_hornsを生成するようにしないとな *)
             match M.find_opt Id.valueVar_id sita with
             |Some e ->
-              if exists_horn <> [] then None else (* ここをなくす *)
-                let open BaseLogic in
-                let prop =
-                  `Exists ([],
-                           [`Base
-                             (Eq
-                                (Var ((Hfl.to_baseLogic_sort sort), Id.valueVar_id),
-                                 e))])
-                in            
-                Some ((Program.Formula e), prop, abduction_candidates)
+              let open BaseLogic in            
+              let return_term =
+                Program.Formula e in
+              let return_spec =
+                `Base
+                  (Eq
+                     (Var ((Hfl.to_baseLogic_sort sort), Id.valueVar_id),
+                      e))
+              in            
+              Some
+                (gen_term_from_exists_horn
+                   ctx ep penv abduction_candidates return_term return_spec sita exists_horns size
+                )
               |None -> None
           )
+        |> SSeq.concat ~min_size:1
     )
 
       
@@ -646,9 +662,8 @@ let f ep penv abduction_candidate sort qhorns =
     abduction_candidates_sequence
     ~f:(fun abduction_candidate ->
       let () = Log.log_abduction abduction_candidate in
-      (SSeq.append_sequence
-         (gen_vars_directory top_ctx ep penv abduction_candidate spec)
-         ~size:1
+      (SSeq.append
+         (gen_directory top_ctx ep penv abduction_candidate spec size_max)
          (f top_ctx ep penv abduction_candidate spec size_max))
       |> SSeq.to_seq
     )

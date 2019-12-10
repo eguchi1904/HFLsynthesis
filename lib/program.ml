@@ -1,11 +1,13 @@
-type e = |App of {head: Id.t;  args: e list}
-         |Formula of BaseLogic.t
+open Extensions
+type term = |App of {head: Id.t;  args: (Id.t * Hfl.sort) list}
+            |Formula of BaseLogic.t
 
-type condition = |ETermCond of e
-                 |PredCond of BaseLogic.t
-                         
+(* うーんこの定義が正解かな *)
+type e = |Let of (Id.t * Hfl.sort * e * e)
+         |Term of term
+
 type b =
-  |PIf of (condition * b * b)
+  |PIf of (e * b * b)
   |PMatch of e * (case list)
   |PE of e
  and case =  {constructor : Id.t ;
@@ -15,45 +17,108 @@ type b =
 type t =
   |PRecFun of Id.t * ((Id.t * Hfl.sort) list) * b
 
+
+(* let の数、closedかつ助長でなければインラン化した時のsize *)
 let rec size_e = function
-  |Formula _ -> 1
-  |App {head = _; args = args} ->
-    let args_size =
-      List.fold_left
-        (fun acc_size arg -> acc_size + (size_e arg))
-        0
-        args
-    in
- args_size + 1
-      
+  |Let (_, _, e1, e2) ->
+    (size_e e1) + (size_e e2)
+  |Term _ -> 1
 
-let rec to_string_e e =
-  match e with
-  |Formula formula -> BaseLogic.p2string formula
-  |App {head = head; args = args} -> 
+let rec fv_term = function
+  |App {args = args;_} ->
+    S.of_list (List.map fst args)
+  |Formula e -> BaseLogic.fv_include_v e
+
+let rec fv_term_with_sort = function
+  |App {args = args;_} ->
+    args
+  |Formula e ->
+    BaseLogic.fv_sort_include_v e
+    |> List.map
+         (fun (x, bsort) ->
+           (x, ((Hfl.of_baseLogic_sort bsort):> Hfl.sort)))
+
+let rec fv_e_with_sort' = function
+  |Term term -> fv_term_with_sort term
+  |Let (x, _, e1, e2) ->
+    (fv_e_with_sort' e1)@(fv_e_with_sort' e2)
+    |> List.filter (fun (x',_) -> x <> x')
+
+let fv_e_with_sort e =
+  fv_e_with_sort' e |> List.uniq
+    
+                       
+  
+
+  
+(* なんか頭が悪いことをしている気がするが...
+   BaseLogic.t をe termで使うために
+ *)
+let rec term_to_string atom_ids str_env term =
+  match term with
+  |App {head = arg_head; args = []} ->
+    (Id.to_string_readable arg_head)
+  |App {head = arg_head; args = args} ->
     let args_str =
-      args
-      |> List.map
-           (function
-            |App {head = arg_head; args = []} ->
-              (Id.to_string_readable arg_head)
-            |Formula formula -> BaseLogic.p2string formula
-            | arg -> 
-               "("^(to_string_e arg)^")")
-
+      List.map
+        (fun (arg_id,_) ->
+          match M.find_opt arg_id str_env with
+          |Some arg_str ->
+            if S.mem arg_id atom_ids then
+              arg_str
+            else
+              "("^arg_str^")"
+          |None -> assert false)
+        args
       |> String.concat " "
     in
-    (Id.to_string_readable head)^" "^args_str
+    "("^(Id.to_string_readable arg_head)^" "^args_str^")"
+  |Formula e ->
+    let sita = M.mapi
+                 (fun id id_str ->
+                   let id_str = if S.mem id atom_ids then
+                                  id_str
+                                else
+                                  "("^id_str^")"
+                   in
+                   let id_str_id = Id.genid_const id_str in
+                   let dummy_sort = BaseLogic.DataS  (Id.genid "dummy", []) in
+                    (BaseLogic.Var (dummy_sort, id_str_id))
+                 )
+                 str_env
+    in              
+    BaseLogic.p2string (BaseLogic.substitution sita e)
 
-let to_string_cond = function
-  |ETermCond e -> to_string_e e
-  |PredCond base -> BaseLogic.p2string base
+
+let is_atom_e e =
+  let open BaseLogic in
+  match e with
+  |Term (App {args = [];_}) -> true
+  |Term (Formula (Var _)) -> true
+  |_ -> false
+                                      
+
+let rec to_string_e_rec atom_ids str_env = function
+  |Term term -> term_to_string atom_ids str_env term
+  |Let (id, _, e1, e2) ->
+    let e1_str = to_string_e_rec atom_ids str_env e1 in
+    let str_env = M.add id e1_str str_env in
+    let atom_ids =
+      if is_atom_e e1 then S.add id atom_ids else atom_ids
+    in
+    to_string_e_rec atom_ids str_env e2
+
+
+let to_string_e e =
+  to_string_e_rec S.empty M.empty e
+    
+    
   
 let rec to_string_b d b =
   let indent = String.make d ' ' in
   indent^(match b with
           |PIf (cond, b1, b2) ->
-            "if "^(to_string_cond cond)^" then\n"
+            "if "^(to_string_e cond)^" then\n"
             ^(to_string_b (d+2) b1)
             ^"\n"^indent^"else\n"
             ^(to_string_b (d+2) b2)

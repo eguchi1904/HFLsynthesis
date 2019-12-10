@@ -319,9 +319,9 @@ let rec separete_toplevel_eq ~exists (clause:Hfl.clause) =
   match clause with
   | `Base (Eq (e1, e2)) ->
      (match e1, e2 with
-      |Var (IntS, x), _ (* when List.mem exists x ~equal:(=) *) -> 
+      |Var (IntS, x), _ when List.mem exists x ~equal:(=) -> 
         ([(e1, e2)], [])
-      |_ , Var (IntS, x) (* when List.mem exists x ~equal:(=) *) -> 
+      |_ , Var (IntS, x) when List.mem exists x ~equal:(=) -> 
         ([(e1, e2)], [])
       | _ -> ([], [clause]))
   | `And (c1, c2) ->

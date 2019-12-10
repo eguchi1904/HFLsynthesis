@@ -146,7 +146,7 @@ let generator data_env qualifiers e_max_size =
                    sort ~spec
                  in
                  let open Program in
-                 Some (PMatch (App {head = x; args = []},
+                 Some (PMatch (Term (App {head = x; args = []}),
                                scon_case::other_cases)
                       )
                |None ->
@@ -157,7 +157,7 @@ let generator data_env qualifiers e_max_size =
                  in
                  let b_else =  gen_b_term ep penv' abduction_candidate sort ~spec in
                  let open Program in
-                 Some (PIf ((PredCond (BaseLogic.and_list conds)),
+                 Some (PIf ((Term (Formula (BaseLogic.and_list conds))),
                             (PE e),
                             b_else))
              end
