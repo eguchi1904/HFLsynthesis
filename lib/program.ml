@@ -72,7 +72,18 @@ let rec term_to_string atom_ids str_env term =
         args
       |> String.concat " "
     in
-    "("^(Id.to_string_readable arg_head)^" "^args_str^")"
+    (Id.to_string_readable arg_head)^" "^args_str
+  |Formula ((BaseLogic.Var _) as e)->
+        let sita = M.mapi
+                 (fun _ id_str ->
+                   let id_str_id = Id.genid_const id_str in
+                   let dummy_sort = BaseLogic.DataS  (Id.genid "dummy", []) in
+                    (BaseLogic.Var (dummy_sort, id_str_id))
+                 )
+                 str_env
+    in              
+    BaseLogic.p2string (BaseLogic.substitution sita e)
+
   |Formula e ->
     let sita = M.mapi
                  (fun id id_str ->

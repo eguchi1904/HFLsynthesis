@@ -354,17 +354,15 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
         let x_size_max = size_sum - (arg_num -1) in (* >= 1 *)
         let () = Log.log_message (":will search in gen_args "^(Id.to_string_readable x)^"size:"^(string_of_int x_size_max))
         in
-        let term_for_x:(Program.e * upProp * AbductionCandidate.t) Seq.t =
+        let term_for_x:(Program.e * upProp * AbductionCandidate.t) SSeq.t =
           (* ここではseq *)
           f (Context.push_goal x ctx)
-            ep penv abduction_candidate x_spec x_size_max |> SSeq.to_seq
-          |> Seq.memoize
+            ep penv abduction_candidate x_spec x_size_max
         in
-
-        
         let terms_seq_seq =
-          Seq.map
+          SSeq.map
             term_for_x
+            ~size_diff:(arg_num - 1) (* sseq_は要素sizeのminをsizeとするので良い *)
             ~f:(fun (ex, (`Exists (_, clauses) as ex_prop), abduction_candidate) ->
               let ex_size: int = Program.size_e ex in
               let ex_conds =
@@ -382,7 +380,7 @@ let rec gen_args: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidat
             )
         in
         (* terms_seq_seqを結合する *)
-        SSeq.concat
+        SSeq.concat2
           terms_seq_seq ~min_size:arg_num
     )
 

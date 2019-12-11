@@ -15,6 +15,8 @@ module type SORTEDSEQUENCE = sig
 
   val concat: 'a t Seq.t -> min_size:int -> 'a t
 
+  val concat2: 'a t t -> min_size:int -> 'a t
+
   val single_size: 'a t -> 'a Seq.t option
   
      
@@ -110,9 +112,8 @@ let generator ~size_max =
           else
             Some (Seq.concat heads_seq, ((i+1), tls_seq)))
 
-    |> Seq.memoize    
+    |> Seq.memoize
 
-                    
   let map t ~f ~size_diff:added_size =
     assert (added_size >= 0);
     (* let () = (Printf.printf "in sseq map:\n") in     *)
@@ -121,6 +122,40 @@ let generator ~size_max =
                t
     in
     shift_right added_size t' |> Seq.memoize
+
+
+  (* 'a t Seq.t Seq.t  *)
+  (* 各 Seq.tのサイズは、その要素内のmin_sizeとなっているとする *)
+  let concat2 (tt:'a t t) ~min_size =
+    Seq.unfold
+      ~init:(1, tt)
+      ~f:(fun (i, tt) ->
+        if i > size_max then None else        
+        let head_tl_sseq:('a Seq.t * 'a t) t =
+          map
+          tt
+            ~f:(fun t ->
+              match Seq.next t with
+              |None -> assert false
+              |Some (head_seq, remain) ->(head_seq,remain))
+          ~size_diff:0
+        in
+        let head_seq_sseq:'a Seq.t t = 
+          (map head_tl_sseq ~f:fst ~size_diff:0)
+        in
+        let next_tt: 'a t t =
+          (map head_tl_sseq ~f:snd ~size_diff:0)
+        in
+        let head_seq =
+          Seq.take head_seq_sseq i
+          |> Seq.concat |> Seq.concat
+        in
+        if i < min_size then  (* head seqを消費しない。 *)
+          Some (Seq.empty, (i+1, next_tt))
+        else        
+          Some (head_seq, (i+1, next_tt))
+      )
+                    
 
   let single_size t = Seq.hd t
 

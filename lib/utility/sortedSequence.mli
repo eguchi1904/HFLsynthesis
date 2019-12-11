@@ -12,7 +12,9 @@ module type SORTEDSEQUENCE = sig
   val map: 'a t -> f:('a -> 'b) -> size_diff:int -> 'b t
 
   (* ここで適切に遅延されることが大事 *)
-  val concat: 'a t Base.Sequence.t -> min_size:int -> 'a t    
+  val concat: 'a t Base.Sequence.t -> min_size:int -> 'a t
+
+  val concat2: 'a t t -> min_size:int -> 'a t    
     
   val single_size: 'a t -> 'a Base.Sequence.t option
     
