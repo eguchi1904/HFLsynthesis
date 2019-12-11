@@ -106,8 +106,6 @@ end = struct
 
              
     
-
-    
   let is_same t e1 e2 =
     let e1_group = TermIdTable.to_id e1 |> group_id t in
     let e2_group = TermIdTable.to_id e2 |> group_id t in

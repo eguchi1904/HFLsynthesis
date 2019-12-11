@@ -51,8 +51,8 @@ module TestSolveEquality = struct
         sita
         ""
 
-  let problem_to_string e1 e2 =
-    (BaseLogic.p2string e1)^" = "^(BaseLogic.p2string e2)
+  let problem_to_string env e1 e2 =
+    (SolveEquality.Env.to_string env)^"|-"^(BaseLogic.p2string e1)^" = "^(BaseLogic.p2string e2)
      
   let test1 () =
     let i = Id.genid_const "i" in
@@ -67,7 +67,7 @@ module TestSolveEquality = struct
     let result =
       SolveEquality.f ~exists:[i'] env [(e1, e2)]
     in
-    "result of"^(problem_to_string e1 e2)^"\n"^result_to_string result |> print_string
+    "result of"^(problem_to_string env e1 e2)^"\n"^result_to_string result |> print_string
 
 
   let test2 () =
@@ -102,11 +102,66 @@ module TestSolveEquality = struct
         assert false
 
   (* \exists. sclar,v1,v2.(n>=0; sclar = _v => _v = v1 + v2)  *)
-  let test4 () = ()
+  let test4 () =
+    let list_sort = DataS (Id.genid_const "list", []) in
+    let x = Id.genid_const "x" in
+    let x_var = Var (IntS, x) in
+    let xs = Id.genid_const "xs" in
+    let xs_var = Var (list_sort, xs) in
+    
+    let y = Id.genid_const "y" in
+    let y_var = Var (IntS, y) in
+    let ys = Id.genid_const "ys" in
+    let ys_var = Var (list_sort, ys) in
+
+    let  l = Id.genid_const "l" in
+    let l_var = Var (list_sort, l) in
+
+    let cons_list z zs = (Cons (list_sort, (Id.genid_const "Cons"), [z;zs])) in
+    (* l = y::ys *)
+    let y_ys =  (cons_list y_var ys_var) in
+    
+    let x_xs =  (cons_list x_var xs_var) in
+    let env = SolveEquality.Env.empty
+              |> SolveEquality.Env.add
+                   y_ys
+                   l_var
+    in
+    let result = SolveEquality.f ~exists:[x;xs] env [(l_var, x_xs)] in
+    "result of"^(problem_to_string env l_var x_xs)^"\n"^result_to_string result |> print_string
+  
+  let test5 () =
+    let list_sort = DataS (Id.genid_const "list", []) in
+    let x = Id.genid_const "x" in
+    let x_var = Var (IntS, x) in
+    let xs = Id.genid_const "xs" in
+    let xs_var = Var (list_sort, xs) in
+    
+    let y = Id.genid_const "y" in
+    let y_var = Var (IntS, y) in
+
+    let  l = Id.genid_const "l" in
+    let l_var = Var (list_sort, l) in
+
+    let cons_list z zs = (Cons (list_sort, (Id.genid_const "Cons"), [z;zs])) in
+    (* l = y::ys *)
+    let y_xs =  (cons_list y_var xs_var) in
+    
+    let x_xs =  (cons_list x_var xs_var) in
+    let env = SolveEquality.Env.empty
+              |> SolveEquality.Env.add x_var y_var
+              |> SolveEquality.Env.add x_xs l_var
+            
+    in
+    let result = SolveEquality.f ~exists:[] env [(y_xs, x_xs)] in
+    "\nresult of"^(problem_to_string env y_xs x_xs)^"\n"^result_to_string result |> print_string
+  
+                        
+    
     
 
     
-  let f () = List.iter (fun f -> f ()) [test1; test2; test3]
+  let f () = List.iter (fun f -> f ()) [test1; test2; test3; test4; test5]
            
            
 end
