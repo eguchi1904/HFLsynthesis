@@ -505,8 +505,13 @@ and solve_application:
   )
 
 
-and is_fowarded_by_expansion sita_before sita_after horns =
-  (M.cardinal sita_before) < (M.cardinal sita_after)
+and is_fowarded_by_expansion
+      ~before:(sita_before, binds)
+      ~after:sita_after horns =
+  let before_exists = List.filter binds ~f:(fun (x,_) -> not (M.mem x sita_before)) in
+  (List.exists
+    before_exists               (* before existsで解決したものがある *)
+    ~f:(fun (x,_) -> M.mem x sita_after))
   ||horns = []
 
 and solve_application_by_expand:
@@ -561,7 +566,11 @@ and solve_application_by_expand:
                   match Seq.next expand_solutions with
                   |Some ((sita_after_expand, exists, horns), next) ->
                     (* expandして、結果existが増えることを許すなら->  *)
-                    if (is_fowarded_by_expansion sita sita_after_expand horns) then
+                    if (is_fowarded_by_expansion
+                          ~before:(sita, binds)
+                          ~after:sita_after_expand
+                          horns)
+                    then
                       let exists=(exists:> (Id.t * Hfl.sort)list) in
                       Seq.Step.Yield ((sita_after_expand,
                                        exists'@exists,
