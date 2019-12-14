@@ -188,11 +188,26 @@ module TestSolveEquality = struct
     |> String.concat "\n")
     |> print_string
 
+  let test7 () =
+    let n = Id.genid_const "n" in
+    let n_var = Var (IntS, n) in
+    let v1 = Id.genid_const "v1" in
+    let v1_var = Var (IntS, v1) in
+    let v2 = Id.genid_const "v2" in
+    let v2_var = Var (IntS, v2) in
+    let v1_plus_v2 = Plus (v1_var, v2_var) in
+    let env = SolveEquality.Env.empty in
+    let result =
+      SolveEquality.f ~exists:[v1; v2; n] env [(n_var, v1_plus_v2)]
+    in
+    "\nresult of"^(problem_to_string env n_var v1_plus_v2)^"\n"^result_to_string result |> print_string    
+
+
     
     
 
     
-  let f () = List.iter (fun f -> f ()) [test1; test2; test3; test4; test5; test6]
+  let f () = List.iter (fun f -> f ()) [test1; test2; test3; test4; test5; test6; test7]
            
            
 end

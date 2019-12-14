@@ -549,7 +549,7 @@ and solve_application_by_expand:
           in
           (match qhorn with
            | `Horn (head_spec_pre, head_spec_result) ->
-              let binds = exists'@binds in
+              let binds = binds@exists' in (* リストの先頭からexistをinstancするので、この順番 *)
               let premise = List.fold_right ~f:Premise.add ~init:premise head_spec_pre in
               (* expand_count がincrementされるのはここのみ *)
               let ctx =
