@@ -25,5 +25,5 @@ end
 val f: exists:Id.t list
        -> Env.t
        -> (BaseLogic.t * BaseLogic.t) list
-       -> BaseLogic.t M.t option
+       -> BaseLogic.t M.t Base.Sequence.t
   

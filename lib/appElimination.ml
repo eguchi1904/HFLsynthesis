@@ -447,7 +447,7 @@ and solve_equality_inequality_constraints:
     let eq_trial_result =
       SolveEquality.f ~exists:exists_for_solve_eq equality_env eq_cons
     in
-    match eq_trial_result with (* ここには非決定性がないはずなので *)
+    match Seq.hd (eq_trial_result) with (* ここには非決定性がないはずなので *)
     |None -> Seq.empty
     |Some sita' ->
       (* まず、unionは違うだろ *)
@@ -687,7 +687,7 @@ and eliminate_app ctx sita ~exists:binds ep ~premise clause =
                    | (_ as c) -> `Snd c)
   in
   let eq_env = (Premise.show_equality_env premise) in
-  match SolveEquality.f ~exists:exists_for_solve_eq eq_env eq_cons with
+  match Seq.hd (SolveEquality.f ~exists:exists_for_solve_eq eq_env eq_cons) with
   |None -> Seq.empty
   |Some sita' ->
     (* composeの順番に注意 *)

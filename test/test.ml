@@ -42,15 +42,23 @@ end
                       
 module TestSolveEquality = struct
   open BaseLogic
-  let result_to_string = function
-    |None -> "no solution"
-    |Some sita ->
-      M.fold
-        (fun i e acc ->
-          (Id.to_string_readable i)^"-->"^(BaseLogic.p2string e)^"; "^acc)
-        sita
-        ""
-
+  module Seq = Base.Sequence
+             
+  let result_to_string (result_seq: t M.t Seq.t) =
+    if Seq.is_empty result_seq then
+      "FAIL!"
+    else
+    Seq.fold
+      result_seq
+      ~init:"SUCCESS!:.."
+      ~f:(fun acc sita-> 
+        acc^"\n"^(M.fold
+                    (fun i e acc ->
+                      (Id.to_string_readable i)^"-->"^(BaseLogic.p2string e)^"; "^acc)
+                    sita
+                    "sita:")
+      )
+    
   let problem_to_string env e1 e2 =
     (SolveEquality.Env.to_string env)^"|-"^(BaseLogic.p2string e1)^" = "^(BaseLogic.p2string e2)
      
@@ -76,13 +84,9 @@ module TestSolveEquality = struct
     let env = SolveEquality.Env.empty
               |> SolveEquality.Env.add (Int 0) n_var
     in
-    match SolveEquality.f ~exists:[] env [(Int 0, n_var)] with
-    |None -> assert false
-    |Some sita ->
-      if M.is_empty sita then
-        print_string "\nSUCSESS test2: 0=n imply n=0\n"
-      else
-        assert false
+    let result =  SolveEquality.f ~exists:[] env [(Int 0, n_var)] in
+    "result of"^(problem_to_string env (Int 0) n_var)^"\n"^result_to_string result
+    |> print_string      
     
 
   (*  0<=n && n <= 0 imply 0? *)
@@ -93,13 +97,9 @@ module TestSolveEquality = struct
               |> SolveEquality.Env.add_lower_bound (Int 0) n
               |> SolveEquality.Env.add_upper_bound  n (Int 0)
     in
-    match SolveEquality.f ~exists:[] env [(n_var, Int 0)] with
-    |None -> assert false
-    |Some sita ->
-      if M.is_empty sita then
-        print_string "\nSUCSESS test3: 0<=n && n <= 0 imply n= 0\n"
-      else
-        assert false
+    let result = SolveEquality.f ~exists:[] env [(n_var, Int 0)] in
+    "result of"^(problem_to_string env n_var (Int 0))^"\n"^result_to_string result
+    |> print_string      
 
   (* \exists. sclar,v1,v2.(n>=0; sclar = _v => _v = v1 + v2)  *)
   let test4 () =
