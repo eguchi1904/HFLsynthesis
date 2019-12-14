@@ -9,9 +9,11 @@ end
 
                       
 (* 試しに第1級モジュールでパラメータを扱ってみる *)
-let generator data_env qualifiers e_max_size =
+let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
   (module struct
+     module GenEtermsScrutinee = (val (GenEterms.generator ~size_max:scrutinee_max_size))     
      module GenEterms = (val (GenEterms.generator ~size_max:e_max_size))
+                      
      type matchConditionInfo = {dataName:Id.t;
                                 scrutinee: Id.t;
                                 sclarConstructor: Id.t;
@@ -112,11 +114,11 @@ let generator data_env qualifiers e_max_size =
                                 
        
      let rec gen_b_term: Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.sort -> spec:Hfl.qhorn list 
-                     -> Program.b
+                     -> Program.b option
        =
        (fun ep penv abduction_candidate sort ~spec ->
          match gen_branch_by_abduction ep penv abduction_candidate sort ~spec with
-         |Some b -> b
+         |Some b -> Some b
          |None ->
            (* enumeration of match or use othere template  *)           
            invalid_arg "gen_b_term: not impl yet:(match enumeration)"
@@ -140,22 +142,25 @@ let generator data_env qualifiers e_max_size =
                  let other_cons = DataType.Env.list_constructor data_env i
                                   |> List.filter (fun (cons:DataType.constructor) -> cons.name <> scon)
                  in
-                 let other_cases =
-                   gen_match_cases ep penv abduction_candidate
-                                   ~scrutineeInfo:(x, None, i, other_cons)
-                   sort ~spec
-                 in
+                 (match gen_match_cases ep penv abduction_candidate
+                                       ~scrutineeInfo:(x, None, i, other_cons)
+                                       sort ~spec                 
+                 with
+                 |None -> None
+                 |Some other_cases -> 
                  let open Program in
-                 Some (PMatch (Term (App {head = x; args = []}),
+                 Some (PMatch (x, (Term (App {head = x; args = []})),
                                scon_case::other_cases)
-                      )
-               |None ->
+                      ))
+                 |None ->
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
                  let abduction_candidate =
                    AbductionCandidate.initialize data_env penv' qualifiers ~new_vars:[] abduction_candidate
                  in
-                 let b_else =  gen_b_term ep penv' abduction_candidate sort ~spec in
+                 match gen_b_term ep penv' abduction_candidate sort ~spec with
+                 |None -> None
+                 |Some b_else -> 
                  let open Program in
                  Some (PIf ((Term (Formula (BaseLogic.and_list conds))),
                             (PE e),
@@ -179,19 +184,29 @@ let generator data_env qualifiers e_max_size =
            (add_penv_case_specific_info penv' z scrutinee_prop (`Data data))
            cons_list
        in
-       List.map2
-         (fun DataType.{name = cons; args = _} (penv, new_arg) ->
-           let abduction_candidate =
-             AbductionCandidate.initialize
-               data_env penv qualifiers ~new_vars:(List.map fst new_arg) abduction_candidate
-           in
-           Program.{constructor = cons;
-                    argNames =new_arg;
-                    body = gen_b_term ep penv abduction_candidate sort ~spec})
-         cons_list
-         penv_args_list
+         List.fold_left2
+           (fun acc_case_opt DataType.{name = cons; args = _} (penv, new_arg) ->
+             match acc_case_opt with
+             |None -> None
+             |Some acc_case -> 
+               let abduction_candidate =
+                 AbductionCandidate.initialize
+                   data_env penv qualifiers ~new_vars:(List.map fst new_arg) abduction_candidate
+               in
+               match gen_b_term ep penv abduction_candidate sort ~spec with
+               |None -> None
+               |Some body -> 
+                 Some (acc_case@[Program.{constructor = cons;
+                                           argNames =new_arg;
+                                           body = body }]))
+           (Some [])
+           cons_list
+           penv_args_list
 
 
+     (* and gen_match_by_scrutinee_enumeration ep penv abduction_candidate sort ~spec = *)
+     (*   let scrutinee_e =  *)
+       
      let inductive_arg (x, sort) clause =
        let open BaseLogic in
        match sort with
@@ -314,8 +329,10 @@ let generator data_env qualifiers e_max_size =
          | `Horn(cs, c) ->
             let penv = PathEnv.add_condition_list cs penv in
             let sort = (Hfl.return_sort sort:> Hfl.sort) in
-            let b = gen_b_term ep penv abduction_candidate sort ~spec:[`Horn ([], c)] in
-            Program.PRecFun (name, args, b)
+            (match  gen_b_term ep penv abduction_candidate sort ~spec:[`Horn ([], c)] with
+            |None -> raise (Not_found)
+            |Some b -> 
+            Program.PRecFun (name, args, b))
          | _ -> assert false    (* not impl *)
        )
        

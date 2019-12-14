@@ -15,5 +15,7 @@ val add_bind_list: (Id.t * Hfl.sort) list -> t -> t
 val find_heads: Hfl.baseSort -> t -> HeadCandidates.t
 
 val extract_condition: t -> Hfl.clause list
+
+val expand: int -> Hfl.Equations.t -> t -> t
   
-          
+val is_sat:t -> bool

@@ -4,6 +4,7 @@ module type SYNTHESIZER = sig
      
 end
 
-val generator: DataType.Env.t -> Qualifier.t list -> int -> (module SYNTHESIZER)
+val generator: DataType.Env.t -> Qualifier.t list
+               -> e_max:int -> scrutinee_max_size:int -> (module SYNTHESIZER)
 
  

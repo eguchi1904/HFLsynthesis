@@ -8,6 +8,7 @@ open AppElimination
 open SolveEquality
    
 let e_term_max_size = 7
+let scrutinee_max_size = 3
 
 
 let syntheis synthesizer ep (var, (pathenv, sort)) =
@@ -48,7 +49,7 @@ let f () =
     ("hfl synthesis");  
   let data_env, ep, qualifiers, goals = Preprocess.f !file in
   let module Synthesizer =
-    (val (Synthesis.generator data_env qualifiers e_term_max_size))
+    (val (Synthesis.generator data_env qualifiers ~e_max:e_term_max_size) ~scrutinee_max_size)
   in
   List.iter (syntheis Synthesizer.f ep) goals 
 

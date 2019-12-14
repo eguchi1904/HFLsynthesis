@@ -8,7 +8,7 @@ type e = |Let of (Id.t * Hfl.sort * e * e)
 
 type b =
   |PIf of (e * b * b)
-  |PMatch of e * (case list)
+  |PMatch of Id.t * e * (case list)
   |PE of e
  and case =  {constructor : Id.t ;
               argNames : (Id.t * Hfl.baseSort) list ;
@@ -160,12 +160,20 @@ let rec to_string_b d b =
             ^(to_string_b (d+2) b1)
             ^"\n"^indent^"else\n"
             ^(to_string_b (d+2) b2)
-          |PMatch (e, cases) ->
+          |PMatch (_, (Term (App {args = [];_}) as e), cases) ->
             let cases_str =
-              List.map (to_string_case (d+2)) cases
+              List.map (to_string_case (d+2) ) cases
+              |> String.concat "\n"
+            in            
+            "match "^(to_string_e e)^" with\n"
+            ^cases_str            
+          |PMatch (e_id, e, cases) ->
+            let cases_str =
+              List.map (to_string_case (d+2) ) cases
               |> String.concat "\n"
             in
-            "match "^(to_string_e  e)^" with\n"
+            "let "^(Id.to_string_readable e_id)^" = "^(to_string_e  e)^"\n"
+            ^indent^"match "^(Id.to_string_readable e_id)^" with\n"
             ^cases_str
 
           |PE e -> (to_string_e  e)
