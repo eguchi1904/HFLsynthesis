@@ -11,7 +11,15 @@ sig
 
   val add_upper_bound: Id.t -> BaseLogic.t -> t -> t
 
-  val add_lower_bound: BaseLogic.t -> Id.t -> t -> t        
+  val add_lower_bound: BaseLogic.t -> Id.t -> t -> t
+
+  val is_same: t -> BaseLogic.t -> BaseLogic.t -> bool
+
+  val is_same_int_term: exists:Id.t list -> t -> BaseLogic.t -> BaseLogic.t -> BaseLogic.t M.t option
+
+  val decompose_by_app_terms: t -> BaseLogic.t -> BaseLogic.t
+                              ->(BaseLogic.t * BaseLogic.t ) list list    
+    
 
 
   (* 単純に同値類に含まれているかを確認する *)

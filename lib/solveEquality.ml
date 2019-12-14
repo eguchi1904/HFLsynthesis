@@ -15,6 +15,8 @@ module Group:sig
 
   val to_string: t -> string
 
+  val mem: BaseLogic.t -> t -> bool
+    
   val get_id: t -> Id.t
 
   val get_app_terms: t -> TermListS.t M.t
@@ -44,6 +46,9 @@ end= struct
             appTerms: TermListS.t M.t; (* f -> [(x1,x2); (x3,x4) ...] 取り出しやすいように *)
             constTerms: TermS.t}
 
+  let mem e t =
+    TermS.mem e t.terms
+
   let to_string t =
     let term_str =
       TermS.fold
@@ -58,12 +63,12 @@ end= struct
           let args_str = 
             TermListS.fold
               (fun es acc ->
-                "("^(List.map ~f:BaseLogic.p2string es |> String.concat ";")^");\n"^acc
+                "("^(List.map ~f:BaseLogic.p2string es |> String.concat ";")^");"^acc
               )
               arg_set
               ""
           in
-          "  "^(Id.to_string_readable fname)^"-->["^args_str^"]\n"^acc)
+          "  "^(Id.to_string_readable fname)^"-->["^args_str^"]"^acc)
         t.appTerms
       ""
     in
@@ -224,12 +229,22 @@ end = struct
            else
              group
          )
-         t.equality ;
+         t.equality
+       |> M.add g1_id g1_g2
+       |> M.add g2_id g1_g2    
+    ;
      varInstance = t.varInstance;
      upperBound = t.upperBound;
      lowerBound = t.lowerBound
     }
-    
+
+
+  let add_new_bind e group t =
+    {equality = M.add (TermIdTable.to_id e) group t.equality;
+     varInstance = t.varInstance;
+     upperBound = t.upperBound;
+     lowerBound = t.lowerBound
+    }
     
   let add e1 e2 t =
     let t = update_var_instance e1 e2 t in
@@ -240,23 +255,31 @@ end = struct
         union e1_group e2_group t
     |(Some e1_group), None ->
       let e2_group = Group.mk_empty () |> Group.add e2 in
+      let t = add_new_bind e2 e2_group t in
       union e1_group e2_group t
     |None , (Some e2_group) ->
       let e1_group = Group.mk_empty () |> Group.add e1 in
+      let t = add_new_bind e1 e1_group t in      
       union e2_group e1_group t
     |None, None ->
       let e1_group = Group.mk_empty () |> Group.add e1 in      
       let e2_group = Group.mk_empty () |> Group.add e2 in
+      let t = add_new_bind e1 e1_group t in
+      let t = add_new_bind e2 e2_group t in            
       union e1_group e2_group t
       
     
     
- 
+  (* ここ、で *)
   let is_same t e1 e2 =
     match (find_group_opt e1 t), (find_group_opt e2 t) with
     |(Some e1_group), (Some e2_group) ->
       Group.get_id e1_group = Group.get_id e2_group
-    |_ -> false
+    |Some e1_group, _ ->
+      Group.mem e2 e1_group
+    |_ , Some e2_group ->
+      Group.mem e1 e2_group
+    |_ -> e1 = e2
 
 
         
@@ -398,7 +421,7 @@ end = struct
       |None, None ->
         let g1 = Group.mk_empty () |> Group.add e1 in        
         let g2 = Group.mk_empty () |> Group.add e2 in
-        g1, g2
+    g1, g2
     in
     let g1_app_terms = Group.get_app_terms g1 in
     let g2_app_terms = Group.get_app_terms g2 in
