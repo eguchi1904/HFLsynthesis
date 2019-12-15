@@ -81,6 +81,8 @@ module Env:sig
      y > 0 && List (\x.x>0) ys 
      と展開し、y,ysに要求される条件を生成する
 
+　   -->  pahenv expandでもっと一般的な処理で対応できるので、いらなそう
+
    *)
   val unfold_refine: t -> constructor -> Id.t * Hfl.abstClause list -> (Id.t * Hfl.clause) list
 

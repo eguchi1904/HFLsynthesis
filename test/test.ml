@@ -200,7 +200,11 @@ module TestSolveEquality = struct
     let result =
       SolveEquality.f ~exists:[v1; v2; n] env [(n_var, v1_plus_v2)]
     in
-    "\nresult of"^(problem_to_string env n_var v1_plus_v2)^"\n"^result_to_string result |> print_string    
+    "\nresult of"^(problem_to_string env n_var v1_plus_v2)^"\n"^result_to_string result |> print_string
+
+
+
+    
 
 
     
@@ -214,7 +218,54 @@ end
 
 
 module TestConstraint = struct
+  open BaseLogic
+  (*  f n = exists i'. (n <= 1)||(f (n+i'))
 
+  *)
+  (* n = i', n = n', m = (n'-1), m -1 <0 *)
+  let test1 () =
+    let i = Id.genid_const "i" in
+    let i' =  Id.genid_const "i'" in
+    let n = Id.genid_const "n" in
+    let n'  = Id.genid_const "n'" in
+    let m = Id.genid_const "m" in
+    let i_var = Var (IntS, i) in
+    let i'_var = Var (IntS, i') in
+    let n_var = Var (IntS, n) in
+    let n'_var = Var (IntS, n') in
+    let m_var = Var (IntS, m) in
+    let f_name = Id.genid_const "f" in
+    let body:Hfl.clause = `Or ((`Base (Le (n_var, Int 1)),
+                                (`App {head = f_name;
+                                       params = [];
+                                       args = [`Base (Plus (n_var, i'_var))]})))
+    in
+    let qhorn_f :Hfl.qhorn = `Exists (i', `IntS,  (`Horn ([], body))) in
+    let fhorn_f = Hfl.{params = [];
+                     args = [(n, `IntS)];
+                     body = qhorn_f}
+    in    
+    let ep = Hfl.Equations.make () in
+    let () = Hfl.Equations.add ep f_name (Some Hfl.Mu) fhorn_f in
+    let pathenv = PathEnv.empty
+                  |> PathEnv.add_condition (`Base (Eq (n_var, i'_var)))
+                  |> PathEnv.add_condition (`Base (Eq (n_var, n'_var)))
+                  |> PathEnv.add_condition (`Base (Eq (m_var, Minus (n'_var, Int 1))))
+                  |> PathEnv.add_condition (`Base (Lt ((Minus (m_var, Int 1)), Int 0)))
+    in
+    let clause = `App Hfl.{head = f_name; params = []; args = [`Base n_var]} in
+    let cons = Constraint.make
+      ep ~exists:[] ~premise:(PathEnv.extract_condition pathenv)
+         ~horns:[`Horn ([], clause)]
+    in
+    if Constraint.is_valid ~start_message:("go to") cons then
+      print_string "\ncons valid!!\n"
+    else
+      print_string "\nfail..\n"      
+
+
+  let f () = List.iter (fun f -> f ()) [test1]
+    
 
   
 end
@@ -434,6 +485,58 @@ module TestSSeq = struct
     
 end
 
+module TestPathEnv = struct
+  open BaseLogic
+  let test1 () =
+    let i = Id.genid_const "i" in
+    let i' =  Id.genid_const "i'" in
+    let n = Id.genid_const "n" in
+    let i_var = Var (IntS, i) in
+    let i'_var = Var (IntS, i') in
+    let n_var = Var (IntS, n) in
+    (* n < 0 || i' = n + 1 *)
+    let body:Hfl.clause = `Or ((`Base (Le (n_var, Int 0)),
+                                (`Base (Eq (i'_var, Plus (Int 1, n_var))))))
+    in
+    let q_name = Id.genid_const "Q" in
+    let qhorn_Q :Hfl.qhorn = `Exists (i', `IntS, (`Horn ([], body))) in
+    let fhorn_Q = Hfl.{params = [];
+                     args = [(n, `IntS)];
+                     body = qhorn_Q}
+    in
+    let p_name = Id.genid_const "P" in
+    
+    let qhorn_P :Hfl.qhorn =  (`Horn ([], body)) in
+    let fhorn_P = Hfl.{params = [];
+                     args = [(n, `IntS); (i', `IntS)];
+                     body = qhorn_P}
+    in    
+    let ep = Hfl.Equations.make () in
+    let () = Hfl.Equations.add ep q_name (Some Hfl.Mu) fhorn_Q in
+    let () = Hfl.Equations.add ep p_name (Some Hfl.Mu) fhorn_P in    
+    let pathenv = PathEnv.empty
+                  |> PathEnv.add_condition (`Base (Gt (n_var, Int 0)))
+                  |> PathEnv.add_condition (`App {head = q_name;
+                                                  params = [];
+                                                  args = [`Base n_var]})
+                  |> PathEnv.add_condition (`App {head = p_name;
+                                                  params = [];
+                                                  args = [`Base n_var; `Base (Int 10)]})
+                
+    in
+    let () = print_string "\npathenv before expand\n" in
+    let  () = print_string (PathEnv.to_string pathenv) in
+    let pathenv = PathEnv.expand 2 ep pathenv in
+    let () = print_string "\npathenv after expand\n" in
+    let  () = print_string (PathEnv.to_string pathenv) in
+    ()
+
+    
+      let f () = List.iter (fun f -> f ()) [test1]
+    
+  
+
+end
 
     
   
@@ -441,6 +544,8 @@ end
 let _ =
   let () = TestPolynomial.f () in
   let () =  TestSolveEquality.f () in
+  let () = TestPathEnv.f () in
+  let () = TestConstraint.f () in
   (* let () =  TestSeq.f () in *)
   (* let () = TestSSeq.f () in *)
   ()

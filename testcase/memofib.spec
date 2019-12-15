@@ -1,10 +1,8 @@
-
-
 type list =
   |Nil
   |Cons of int * list
 
-let qualifier = [(fun (x:int) -> x <= 1)]
+let qualifier = [(fun (l:list) -> l = Nil);(fun (x:int) -> x < 1)]
               
 let[@measure][@termination] rec _len: list -> int = function
   |Nil -> 0
@@ -23,39 +21,45 @@ let[@predicate][@mu] fib_list (n:int) (l:list) =
 exists (x:int) (xs:list).
   (n < 0 && l = Nil)
   |||
-  (l = Cons x xs &&& fib n x &&& fib_list (n-1) xs)
-  
+  ((_len l > 0) &&& (l = Cons x xs) &&& fib n x &&& fib_list (n-1) xs)
 
 
-let[@spec memo_fib] fib_memo (n:int) (l:int) =
+let [@spec dec] d (n:int) (v:int) =
+  (v = (n - 1))
+
+let [@spec add] add (n:int) (m:int) (v:int) =
+  (v = (n + m))
+
+
+let[@spec memo_fib] fib_memo (n:int) (l:list) =
       (n >= 0) ==> fib_list n l
 
 
-
+let memo_fib = ??
     
 
 (* (\* これがでたら良い *\) *)
-let rec fib_memo n =
-  if n < 0 then Nil
-  else
-    match fib_memo (n-1) with
-    |Nil -> Cons n Nil
-    |(Cons x xs as l)->
-       (match xs with
-         |Nil -> Cons n l
-         |Cons y ys -> Cons (x+y) l)
+(* let rec fib_memo n = *)
+(*   if n < 0 then Nil *)
+(*   else *)
+(*     match fib_memo (n-1) with *)
+(*     |Nil -> Cons n Nil *)
+(*     |(Cons x xs as l)-> *)
+(*        (match xs with *)
+(*          |Nil -> Cons n l *)
+(*          |Cons y ys -> Cons (x+y) l) *)
 
-(* または、 *)
-let rec fib_memo n = 
-  if n < 0 then Nil
-  else if n <= 1 then Cons n Nil
-  else
-    match fib_memo (n-1) with
-    |Nil -> assert false
-    |(Cons x xs as l)->
-       (match xs with
-         |Nil -> Cons n l
-         |Cons y ys -> Cons (x+y) l)
+(* (\* または、 *\) *)
+(* let rec fib_memo n =  *)
+(*   if n < 0 then Nil *)
+(*   else if n <= 1 then Cons n Nil *)
+(*   else *)
+(*     match fib_memo (n-1) with *)
+(*     |Nil -> assert false *)
+(*     |(Cons x xs as l)-> *)
+(*        (match xs with *)
+(*          |Nil -> Cons n l *)
+(*          |Cons y ys -> Cons (x+y) l) *)
 
 
     

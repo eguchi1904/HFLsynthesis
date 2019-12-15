@@ -170,7 +170,7 @@ end = struct
       "==================================================EQUALITY TRIAL: \n context\n%s\n======\nexist:%s.\n equality:%s => [%s]\n=====\n"
       (Context.to_string ctx) exists_str eq_env_str eq_cons_str
 
-  let log_equality_trial ctx (exists:Id.t list) (env:SolveEquality.Env.t) eq_cons = ()    
+  let log_equality_trial ctx (exists:Id.t list) (env:SolveEquality.Env.t) eq_cons = ()
   let result_to_string = function
     |None -> "no solution"
     |Some sita ->
@@ -319,9 +319,9 @@ let rec separete_toplevel_eq ~exists (clause:Hfl.clause) =
   match clause with
   | `Base (Eq (e1, e2)) ->
      (match e1, e2 with
-      |Var (IntS, x), _ when List.mem exists x ~equal:(=) -> 
+      |Var (_, x), _ when List.mem exists x ~equal:(=) -> 
         ([(e1, e2)], [])
-      |_ , Var (IntS, x) when List.mem exists x ~equal:(=) -> 
+      |_ , Var (_, x) when List.mem exists x ~equal:(=) -> 
         ([(e1, e2)], [])
       | _ -> ([], [clause]))
   | `And (c1, c2) ->
@@ -509,6 +509,7 @@ and is_fowarded_by_expansion
       ~before:(sita_before, binds)
       ~after:sita_after horns =
   let before_exists = List.filter binds ~f:(fun (x,_) -> not (M.mem x sita_before)) in
+  (M.equal (=) sita_before sita_after)||
   (List.exists
     before_exists               (* before existsで解決したものがある *)
     ~f:(fun (x,_) -> M.mem x sita_after))
@@ -617,8 +618,30 @@ and solve_application_expand_if_fail:
      let expand_solutions =
        solve_application_by_expand ctx sita ~exists:binds ep ~premise app
      in
-     Seq.append direct_solutions expand_solutions
+     Seq.unfold_step
+       ~init:(`Direct (false, direct_solutions))
+       ~f:(function
+           | `Direct (solved, seq) ->
+              if solved then Seq.Step.Done
+              else
+                (match Seq.next seq with
+                |None ->
+                  Seq.Step.Skip (`Extend expand_solutions) (* extend を舐める *)
+                |Some (((sita_after, exists, horns)as solution), next_seq) -> 
+                  if M.equal (=) sita sita_after && horns = [] then (* 確実なsolve *)
+                    Seq.Step.Yield (solution, (`Direct (true, next_seq)))
+                  else
+                    Seq.Step.Yield (solution, (`Direct (solved, next_seq))))
+           | `Extend seq ->
+                (match Seq.next seq with
+                 |None -> Seq.Step.Done
+                 |Some (solution, next_seq) ->
+                   Seq.Step.Yield (solution, `Extend next_seq)
+          )
+
+          )
   )
+
 
 
 and solve_application_list:

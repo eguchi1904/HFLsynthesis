@@ -116,7 +116,7 @@ and cut_unsat_path conditions c =
     conditions |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
   in
   let othere_clauses_z3 = 
-    conditions |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
+    other_clauses |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
   in
   let is_sat = UseZ3.bind_and_list (othere_clauses_z3@conditions_z3)
                |> UseZ3.is_satisfiable
@@ -213,7 +213,8 @@ let expand' ep t =
         match try_expand ep t.eqEnv t.condition app_term with
         |Some new_expand_cs ->
           (remain_yet_expand, new_expand_cs@expanded_cs)
-        |None -> (app_term::remain_yet_expand, expanded_cs))
+        |None ->
+          (app_term::remain_yet_expand, expanded_cs))
   in
   {eqEnv = t.eqEnv;
    condition = t.condition;

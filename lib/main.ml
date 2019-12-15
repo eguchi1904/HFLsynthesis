@@ -7,7 +7,7 @@ open AbductionCandidate
 open AppElimination
 open SolveEquality
    
-let e_term_max_size = 7
+let e_term_max_size = 5
 let scrutinee_max_size = 3
 
 

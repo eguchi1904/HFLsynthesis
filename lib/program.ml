@@ -10,6 +10,8 @@ type b =
   |PIf of (e * b * b)
   |PMatch of Id.t * e * (case list)
   |PE of e
+  |PFail
+  |PHole
  and case =  {constructor : Id.t ;
               argNames : (Id.t * Hfl.baseSort) list ;
               body : b}
@@ -148,9 +150,48 @@ let rec to_string_e_direct d e=
     term_to_string_direct term
 
     
+let rec hole_exists = function
+  |PHole -> true
+  |PIf (_ , b1, b2) ->
+          (hole_exists b1)||(hole_exists b2)
+  |PMatch (_, _, cases) ->
+    List.exists hole_exists_case cases
+  |PE _ -> false
+  |PFail -> false
+          
+and hole_exists_case case = hole_exists case.body
     
                              
-    
+let rec subst_to_next_hole b = function
+  |PIf (e, b1, b2) ->
+    if hole_exists b1 then
+      PIf (e, subst_to_next_hole b b1, b2)
+    else
+      PIf (e, b1, subst_to_next_hole b b2)
+  |PMatch (x, e, cases) ->
+    let _, cases =
+      List.fold_left
+        (fun (hole_already_occur, cases) case ->
+          if hole_already_occur then
+            (hole_already_occur, cases@[case])
+          else if hole_exists_case case then
+            let case' = subst_to_next_hole_case b case in
+            (true, cases@[case'])
+          else
+            (hole_already_occur, cases@[case]))
+        (false, [])
+      cases
+    in
+    PMatch (x, e, cases)
+  |PE e -> PE e
+  |PFail -> PFail
+  |PHole -> b
+          
+and subst_to_next_hole_case b case =
+  {constructor = case.constructor;
+   argNames = case.argNames;
+   body = subst_to_next_hole b case.body}
+  
   
 let rec to_string_b d b =
   let indent = String.make d ' ' in
@@ -177,6 +218,8 @@ let rec to_string_b d b =
             ^cases_str
 
           |PE e -> (to_string_e  e)
+          |PFail -> "assert false"
+          |PHole -> "??"
          )
 
 and to_string_case d {constructor = cons; argNames = args; body = b} =
@@ -207,4 +250,4 @@ let to_string = function
     
               
 
-    
+

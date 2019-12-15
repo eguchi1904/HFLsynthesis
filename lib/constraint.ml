@@ -213,8 +213,9 @@ let distribute_horn_to_exists_var' ~exists horns =
       )
       remain
   then
-    exists_horns
+    Some exists_horns
   else
+    
     let remain_str =
       List.map Hfl.qhorn_to_string (remain:> Hfl.qhorn list)
       |> String.concat "\n"
@@ -227,7 +228,8 @@ let distribute_horn_to_exists_var' ~exists horns =
                Log.log_cha
                ("assert false:\nramain:\n"^remain_str^"\nexists:"^exists_str)
     in
-    assert false                (* 起こってほしくない *)
+    None
+    (* assert false *)                (* 起こってほしくない *)
     
 
 let subst_base_term_horn sita =
@@ -237,7 +239,7 @@ let subst_base_term_horn sita =
 
         
 let distribute_horn_to_exists_var sita ~exists horns
-    :(Id.t * Hfl.sort * (Hfl.horn list)) list =
+    :(Id.t * Hfl.sort * (Hfl.horn list)) list option =
   (* sitaの反映 *)
   let horns = List.map (subst_base_term_horn sita) horns in
   let exists = List.filter      (* sitaで解決していないもの *)
@@ -271,7 +273,6 @@ let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
          
   
   
-  
 let solve ~start_message {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
   (* let exists_qhorns, horns = *)
   (*   List.fold_right *)
@@ -292,7 +293,7 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
       ~f:(fun sita horn -> solve_horn sita ~exists ep premise horn)
   in
   let body =
-    Base.Sequence.map
+    Base.Sequence.concat_map
       solutions
       ~f:(fun (sita, new_exists, horns) ->
         (* hornsに出現するもののみをのこす *)
@@ -313,11 +314,12 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
             (fun (x,_) -> not (M.mem x sita))
             (new_exists@exists)
         in
-        let exists_horns =
-          distribute_horn_to_exists_var
-            sita ~exists:exists_sum horns
-        in
-        (sita, exists_horns)
+        match distribute_horn_to_exists_var
+                sita ~exists:exists_sum horns
+        with
+        |None ->  Base.Sequence.empty (* assert false *)
+        |Some exists_horns ->        
+          Base.Sequence.singleton (sita, exists_horns)
       )
   in
   (* sequenceから、要素を取り出そうとするたびにlogを取るように改変↓

@@ -106,6 +106,7 @@ end
 module Log:sig
 
   val gen_trial_string: Context.t -> AbductionCandidate.t -> PathEnv.t -> Constraint.t -> string
+    
   val log_trial_result: bool -> unit
 
   val log_abduction: AbductionCandidate.t -> unit
@@ -657,7 +658,7 @@ let gen_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandida
             |Some _ ->         
               let open BaseLogic in            
               let return_spec =
-                `Base
+                `Basep
                   (Bool true)
               in            
               Some
@@ -695,6 +696,14 @@ let f ep penv abduction_candidate sort qhorns =
     abduction_candidates_sequence
     ~f:(fun abduction_candidate ->
       let () = Log.log_abduction abduction_candidate in
+      let abduction_condition =
+        AbductionCandidate.get abduction_candidate in
+      let penv = PathEnv.add_condition_list
+                    (List.map (fun e -> `Base e) abduction_condition)
+                    penv
+                |> 
+                  PathEnv.expand 3 ep 
+      in
       (SSeq.append
          (gen_directory top_ctx ep penv abduction_candidate spec size_max)
          (f top_ctx ep penv abduction_candidate spec size_max))
