@@ -1,4 +1,5 @@
 module List = Base.List
+
 type t = {
     eqEnv:SolveEquality.Env.t;
     condition:Hfl.clause list;
@@ -26,7 +27,27 @@ let to_string t =
   ^"\npath conditions:"
   ^"\n"^"("^yet_expand_str^")"^cond_str
     
-
+let extract_measure_info data_env c=
+let open BaseLogic in
+  match c with
+    | `Base (Eq (Var (DataS (data,[]), l),
+                 Cons (_, cons, real_args)))
+      | `Base (Eq (Cons (_, cons, real_args),Var (DataS (data,[]), l)))
+      -> 
+    let DataType.{constructor = _; args=args'; body = measure_constraint} = 
+      DataType.Env.measure_constraint_of_constructor data_env (`DataS data) cons 
+    in
+    let args_to_real_args_sita =
+      M.add_list2 (List.map ~f:fst args') real_args M.empty
+    in
+    let measure_constraint = (* len z = len xs + 1 *)
+      measure_constraint
+      |> BaseLogic.replace Id.valueVar_id l
+      |>  BaseLogic.substitution args_to_real_args_sita
+    in
+    Some measure_constraint
+    | _ -> None
+         
     
 let add_condition c env =
   match c with
@@ -37,6 +58,9 @@ let add_condition c env =
    ;sortEnv  =env.sortEnv}
 
   | _ ->
+     let c = match extract_measure_info (!DataType.Env.global_ref) c with
+       |None -> c |Some measre_cond -> `And (c, `Base measre_cond)
+     in
      let open BaseLogic in
     {yetExpandApps = env.yetExpandApps;
      condition = c::env.condition
@@ -112,13 +136,16 @@ and cut_unsat_path conditions c =
       cs
       ~f:(function | (`Or _ as c) ->`Fst c | (_ as c) -> `Snd c)
   in
-  let conditions_z3 =
-    conditions |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
+  let check_clauses =
+    empty
+    |> add_condition_list conditions
+    |> add_condition_list other_clauses
+    |> extract_condition
   in
-  let othere_clauses_z3 = 
-    other_clauses |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
+  let check_clauses_z3 =
+    check_clauses |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
   in
-  let is_sat = UseZ3.bind_and_list (othere_clauses_z3@conditions_z3)
+  let is_sat = UseZ3.bind_and_list check_clauses_z3
                |> UseZ3.is_satisfiable
   in
   if not is_sat then None
@@ -149,9 +176,8 @@ let separate_eq_cons_for_exists_instantiation ~exists:exists' cs =
     ~f:(function
         | `Base (BaseLogic.Eq (e1, e2)) -> `Fst (e1, e2)
         |  c -> `Snd c)
-    
+      
   
-
 let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
   match Hfl.Equations.find ep head with
   |None -> assert false       

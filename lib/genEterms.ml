@@ -19,7 +19,7 @@ type upProp = [`Exists of (Id.t * Hfl.baseSort) list * Hfl.clause list] (* \exis
 
 
 module Spec:
-sig
+sig 
   type t = {sort:Hfl.sort;
             valid:Hfl.horn list;
             sat:Hfl.clause list option (* deplicate *)
@@ -658,7 +658,7 @@ let gen_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandida
             |Some _ ->         
               let open BaseLogic in            
               let return_spec =
-                `Basep
+                `Base
                   (Bool true)
               in            
               Some

@@ -537,9 +537,6 @@ let alpha_rename {params = params
   ;body = freshed_qhorn}
           
 
-
-
-
 type fixOp = Nu | Mu
 
 (* fixpoint equations *)

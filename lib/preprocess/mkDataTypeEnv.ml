@@ -137,5 +137,7 @@ let rec g pmap sort_env data_env = function
     
 (* sort_envはコンストラクタの引数の型を参照するために使う *)
 let f pmap sort_env t =
-  g pmap sort_env (DataType.Env.init ()) t
+  let data_env = g pmap sort_env (DataType.Env.init ()) t in
+  (DataType.Env.global_ref := data_env);
+  data_env
     

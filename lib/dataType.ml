@@ -78,6 +78,7 @@ type refine = {name: Id.t
 
 
 module Env = struct
+
   type t =
     {constructors: (int, formulaCase) Hashtbl.t; (* constructorのmeasre情報が入っている *)
      datatypes: (int, definition) Hashtbl.t;
@@ -85,13 +86,14 @@ module Env = struct
      dataMeasuresTbl: (int, measure list) Hashtbl.t
     }
 
-
   let init () :t=
     {constructors = Hashtbl.create 1024;
      datatypes = Hashtbl.create 1024;
      refines = Hashtbl.create 1024;
      dataMeasuresTbl = Hashtbl.create 1024}
 
+  let global_ref = ref (init () )
+    
   let fold_datatype (f:Id.t -> definition -> 'a-> 'a) t seed =
     Hashtbl.fold
       (fun i definition acc -> f (Id.of_int i) definition acc)

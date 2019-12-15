@@ -87,6 +87,7 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
      module GenEtermsScrutinee = (val (GenEterms.generator ~size_max:scrutinee_max_size))     
      module GenEterms = (val (GenEterms.generator ~size_max:e_max_size))
                       
+                      
      type matchConditionInfo = {dataName:Id.t;
                                 scrutinee: Id.t;
                                 sclarConstructor: Id.t;

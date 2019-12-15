@@ -3,7 +3,7 @@ open List.Or_unequal_lengths
 module Seq = Base.Sequence
 
 type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
-let expansion_max = 1
+let expansion_max = 2
 
 module Premise:sig
   type t

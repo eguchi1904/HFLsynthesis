@@ -50,6 +50,8 @@ module Env:sig
 
   type t
 
+  val global_ref: t ref
+
   val init: unit -> t
 
   val add_definition: t -> definition -> unit
