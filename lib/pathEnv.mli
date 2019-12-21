@@ -2,6 +2,8 @@ type t
 
 val empty :t
 
+val mem: Id.t -> t -> bool
+
 val to_string: t -> string
 
 val add_condition: Hfl.clause -> t -> t

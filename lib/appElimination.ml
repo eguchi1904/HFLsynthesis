@@ -3,7 +3,7 @@ open List.Or_unequal_lengths
 module Seq = Base.Sequence
 
 type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
-let expansion_max = 2
+let expansion_max = ref 2 
 
 module Premise:sig
   type t
@@ -611,35 +611,36 @@ and solve_application_expand_if_fail:
   (fun ctx sita ~exists:binds ep ~premise app ->
     let direct_solutions:solution Seq.t =
       solve_application ctx sita ~exists:binds ep ~premise app in
-   if Context.expansion_num ctx >= expansion_max then
+   if Context.expansion_num ctx >= !expansion_max then
      direct_solutions
    else
      (* ここに、成功した場合はexpansionを作らないというのがいる？ *)
      let expand_solutions =
        solve_application_by_expand ctx sita ~exists:binds ep ~premise app
      in
-     Seq.unfold_step
-       ~init:(`Direct (false, direct_solutions))
-       ~f:(function
-           | `Direct (solved, seq) ->
-              if solved then Seq.Step.Done
-              else
-                (match Seq.next seq with
-                |None ->
-                  Seq.Step.Skip (`Extend expand_solutions) (* extend を舐める *)
-                |Some (((sita_after, exists, horns)as solution), next_seq) -> 
-                  if M.equal (=) sita sita_after && horns = [] then (* 確実なsolve *)
-                    Seq.Step.Yield (solution, (`Direct (true, next_seq)))
-                  else
-                    Seq.Step.Yield (solution, (`Direct (solved, next_seq))))
-           | `Extend seq ->
-                (match Seq.next seq with
-                 |None -> Seq.Step.Done
-                 |Some (solution, next_seq) ->
-                   Seq.Step.Yield (solution, `Extend next_seq)
-          )
+     (Seq.append direct_solutions expand_solutions)
+     (* Seq.unfold_step *)
+     (*   ~init:(`Direct (false, direct_solutions)) *)
+     (*   ~f:(function *)
+     (*       | `Direct (solved, seq) -> *)
+     (*          if solved then Seq.Step.Done *)
+     (*          else *)
+     (*            (match Seq.next seq with *)
+     (*            |None -> *)
+     (*              Seq.Step.Skip (`Extend expand_solutions) (\* extend を舐める *\) *)
+     (*            |Some (((sita_after, exists, horns)as solution), next_seq) ->  *)
+     (*              if M.equal (=) sita sita_after && horns = [] then (\* 確実なsolve *\) *)
+     (*                Seq.Step.Yield (solution, (`Direct (true, next_seq))) *)
+     (*              else *)
+     (*                Seq.Step.Yield (solution, (`Direct (solved, next_seq)))) *)
+     (*       | `Extend seq -> *)
+     (*            (match Seq.next seq with *)
+     (*             |None -> Seq.Step.Done *)
+     (*             |Some (solution, next_seq) -> *)
+     (*               Seq.Step.Yield (solution, `Extend next_seq) *)
+     (*      ) *)
 
-          )
+  (*      ) *)
   )
 
 

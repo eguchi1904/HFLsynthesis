@@ -21,7 +21,7 @@ let[@predicate][@mu] fib_list (n:int) (l:list) =
 exists (x:int) (xs:list).
   (n < 0 && l = Nil)
   |||
-  ((_len l > 0) &&& (l = Cons x xs) &&& fib n x &&& fib_list (n-1) xs)
+  ((l = Cons x xs) &&& fib n x &&& fib_list (n-1) xs)
 
 
 let [@spec dec] d (n:int) (v:int) =

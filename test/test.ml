@@ -531,8 +531,30 @@ module TestPathEnv = struct
     let  () = print_string (PathEnv.to_string pathenv) in
     ()
 
+
+  (* let test2 () = *)
+  (*   let list_sort = DataS (Id.genid_const "list", []) in *)
+  (*   let x = Id.genid_const "x" in *)
+  (*   let x_var = Var (IntS, x) in *)
+  (*   let xs = Id.genid_const "xs" in *)
+  (*   let xs_var = Var (list_sort, xs) in *)
     
-      let f () = List.iter (fun f -> f ()) [test1]
+  (*   let y = Id.genid_const "y" in *)
+  (*   let y_var = Var (IntS, y) in *)
+  (*   let cons_id = (Id.genid_const "Cons") in *)
+  (*   let cons_list z zs = (Cons (list_sort, cons_id, [z;zs])) in *)
+
+  (*   (\* l = y::ys *\) *)
+  (*   let y_xs =  (cons_list y_var xs_var) in *)
+    
+  (*   let x_xs =  (cons_list x_var xs_var) in *)
+  (*   let env = SolveEquality.Env.empty in *)
+    
+    
+    
+
+    
+    let f () = List.iter (fun f -> f ()) [test1]
     
   
 

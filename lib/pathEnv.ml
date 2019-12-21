@@ -12,6 +12,9 @@ let empty = {eqEnv = SolveEquality.Env.empty
             ;condition = []
             ;sortEnv = MlEnv.empty}
 
+let mem x t=
+  MlEnv.mem x t.sortEnv
+  
 
 let to_string t =
   let yet_expand_str =
@@ -22,10 +25,13 @@ let to_string t =
     List.map ~f:(Hfl.clause_to_string) t.condition
     |> String.concat "; "
   in
+  let eq_env_str =SolveEquality.Env.to_string t.eqEnv in
   "bindings:"
   ^"\n"^(MlEnv.to_string t.sortEnv)
   ^"\npath conditions:"
-  ^"\n"^"("^yet_expand_str^")"^cond_str
+  ^"\n"^"(("^yet_expand_str^"))"^cond_str
+  ^"\neq_env_str:\n"^eq_env_str
+    
     
 let extract_measure_info data_env c=
 let open BaseLogic in
@@ -47,6 +53,73 @@ let open BaseLogic in
     in
     Some measure_constraint
     | _ -> None
+
+
+let rec add_measure_info data_env c =
+let open BaseLogic in
+  match c with
+    | `Base (Eq (Var (DataS (data,[]), l),
+                 Cons (_, cons, real_args)))
+      | `Base (Eq (Cons (_, cons, real_args),Var (DataS (data,[]), l)))
+      -> 
+    let DataType.{constructor = _; args=args'; body = measure_constraint} = 
+      DataType.Env.measure_constraint_of_constructor data_env (`DataS data) cons 
+    in
+    let args_to_real_args_sita =
+      M.add_list2 (List.map ~f:fst args') real_args M.empty
+    in
+    let measure_constraint = (* len z = len xs + 1 *)
+      measure_constraint
+      |> BaseLogic.replace Id.valueVar_id l
+      |>  BaseLogic.substitution args_to_real_args_sita
+    in
+    `And (c, `Base measure_constraint)
+    |`Base _ -> c
+    |`And (c1, c2) ->
+       `And (add_measure_info data_env c1, add_measure_info data_env c2)
+    |`Or (c1, c2) ->
+       `Or (add_measure_info data_env c1, add_measure_info data_env c2)
+    |_ -> c
+
+
+let update_eq_env_be_baselogic_term base_e eq_env =
+  let open BaseLogic in
+  match base_e with
+  |Eq (e1, e2) ->
+     SolveEquality.Env.add e1 e2 eq_env
+  |Le (Var (IntS, n), upper)
+   | Ge (upper, Var (IntS, n)) ->
+     SolveEquality.Env.add_upper_bound n upper eq_env
+  |Lt (Var (IntS, n), upper)
+   |Gt (upper, Var (IntS, n))
+    ->
+     let upper = Minus (upper, Int 1) in
+     SolveEquality.Env.add_upper_bound n upper eq_env
+  |Le (lower, Var (IntS, n))
+   |Ge (Var (IntS, n), lower) ->
+     SolveEquality.Env.add_lower_bound lower n eq_env
+  |Lt (lower, Var (IntS, n))
+   |Gt (Var (IntS, n), lower) ->
+     let lower = Plus (lower, Int 1) in
+     SolveEquality.Env.add_lower_bound lower n eq_env
+  | _ ->
+     eq_env
+
+    
+let add_condition_eq_env (c:Hfl.clause) env =
+  let es =
+    (Hfl.separate_by_and c)
+    |> List.filter_map
+         ~f:(function | `Base e -> Some e | _ -> None)
+  in
+  List.fold_left
+    es
+    ~init:env
+    ~f:(fun acc e -> update_eq_env_be_baselogic_term e acc)
+  
+  
+  
+    
          
     
 let add_condition c env =
@@ -58,35 +131,13 @@ let add_condition c env =
    ;sortEnv  =env.sortEnv}
 
   | _ ->
-     let c = match extract_measure_info (!DataType.Env.global_ref) c with
-       |None -> c |Some measre_cond -> `And (c, `Base measre_cond)
+     let c =add_measure_info (!DataType.Env.global_ref) c
      in
      let open BaseLogic in
     {yetExpandApps = env.yetExpandApps;
      condition = c::env.condition
      ;sortEnv  =env.sortEnv;
-     eqEnv =
-       match c with
-       | `Base (Eq (e1, e2)) ->
-          SolveEquality.Env.add e1 e2 env.eqEnv
-       | `Base (Le (Var (IntS, n), upper))
-         | `Base (Ge (upper, Var (IntS, n))) ->
-          SolveEquality.Env.add_upper_bound n upper env.eqEnv
-       | `Base (Lt (Var (IntS, n), upper))
-         | `Base (Gt (upper, Var (IntS, n)))
-         ->
-          let upper = Minus (upper, Int 1) in
-          SolveEquality.Env.add_upper_bound n upper env.eqEnv
-       | `Base (Le (lower, Var (IntS, n)))           
-         | `Base (Ge (Var (IntS, n), lower)) ->
-          SolveEquality.Env.add_lower_bound lower n env.eqEnv
-       | `Base (Lt (lower, Var (IntS, n)))           
-         | `Base (Gt (Var (IntS, n), lower)) ->
-          let lower = Plus (lower, Int 1) in
-          SolveEquality.Env.add_lower_bound lower n env.eqEnv
-       | _ ->
-          env.eqEnv
-       
+     eqEnv = add_condition_eq_env c env.eqEnv
     }     
  
 
@@ -166,7 +217,7 @@ and cut_unsat_path conditions c =
       Some (other_clauses@(List.concat or_sat_clauses))
 
           
-          
+
 
 (* 今はとりあえず、単純に全ての等号をとってくる *)
 let separate_eq_cons_for_exists_instantiation ~exists:exists' cs =
@@ -226,8 +277,6 @@ let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
           Some body_other_cs
         else                    (* exists が全て決まらなかった場合 *)
           None
-
-          
 
              
 let expand' ep t =

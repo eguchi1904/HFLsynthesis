@@ -180,21 +180,21 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                                 
        
      let rec gen_b_term: Context.t ->  Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.sort -> spec:Hfl.qhorn list 
-                     -> Program.b option
+                         -> Program.b option
        =
        (fun ctx ep penv abduction_candidate sort ~spec ->
          match gen_branch_by_abduction ctx ep penv abduction_candidate sort ~spec with
          |Some b -> Some b
          |None ->
            if Context.size ctx > 4 then None else
-           (* enumeration of match or use othere template  *)
-           (match gen_match_by_scrutinee_enumeration
-                    ctx ep penv abduction_candidate sort ~spec
-            with
-            |Some b -> Some b
-            |None ->
-              invalid_arg "gen_b_term: not impl yet:(use template)"
-           )
+             (* enumeration of match or use othere template  *)
+             (match gen_match_by_scrutinee_enumeration
+                      ctx ep penv abduction_candidate sort ~spec
+              with
+              |Some b -> Some b
+              |None ->
+                invalid_arg "gen_b_term: not impl yet:(use template)"
+             )
        )
 
 
@@ -218,21 +218,21 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                  in
                  
                  (match gen_match_cases ctx ep penv abduction_candidate
-                                       ~scrutineeInfo:(x, (Program.Term (App {head = x; args = []})),None, i, other_cons)
-                                       sort ~spec                 
-                 with
-                 |None -> None
-                 |Some other_cases -> 
-                 let open Program in
-                 Some (PMatch (x, (Term (App {head = x; args = []})),
-                               scon_case::other_cases)
-                      ))
+                                        ~scrutineeInfo:(x, (Program.Term (App {head = x; args = []})),None, i, other_cons)
+                                        sort ~spec                 
+                  with
+                  |None -> None
+                  |Some other_cases -> 
+                    let open Program in
+                    Some (PMatch (x, (Term (App {head = x; args = []})),
+                                  scon_case::other_cases)
+                 ))
                |None ->
                  let ctx =
                    let open Program in
                    Context.add_b (PIf  ((Term (Formula (BaseLogic.and_list conds))),
-                                     (PE e),
-                                     PHole)) ctx
+                                        (PE e),
+                                        PHole)) ctx
                  in
                  let else_cond = BaseLogic.Not (BaseLogic.and_list conds) in
                  let penv' = PathEnv.add_condition (`Base else_cond) penv in
@@ -242,10 +242,10 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                  match gen_b_term ctx ep penv' abduction_candidate sort ~spec with
                  |None -> None
                  |Some b_else -> 
-                 let open Program in
-                 Some (PIf ((Term (Formula (BaseLogic.and_list conds))),
-                            (PE e),
-                            b_else))
+                   let open Program in
+                   Some (PIf ((Term (Formula (BaseLogic.and_list conds))),
+                              (PE e),
+                              b_else))
              end
          |None -> None)
 
@@ -280,21 +280,25 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
              |Some (ctx, acc_case) ->
                if not (PathEnv.is_sat (PathEnv.expand 3 ep penv)) then
                  let ctx = Context.add_b Program.PFail ctx in
-                  Some (ctx,(acc_case@[Program.{constructor = cons;
-                                           argNames = new_arg;
-                                           body = Program.PFail}]))
+                 Some (ctx,(acc_case@[Program.{constructor = cons;
+                                               argNames = new_arg;
+                                               body = Program.PFail}]))
                else
-               let abduction_candidate =
-                 AbductionCandidate.initialize
-                   data_env penv qualifiers ~new_vars:(List.map fst new_arg) abduction_candidate
-               in
-               match gen_b_term ctx ep penv abduction_candidate sort ~spec with
-               |None -> None
-               |Some body ->
-                 let ctx = Context.add_b body ctx in
-                 Some (ctx, (acc_case@[Program.{constructor = cons;
-                                           argNames = new_arg;
-                                           body = body }])))
+                 let new_vars = if not (PathEnv.mem z penv) then
+                                  z::(List.map fst new_arg)
+                                else (List.map fst new_arg)
+                 in
+                 let abduction_candidate =
+                   AbductionCandidate.initialize
+                     data_env penv qualifiers ~new_vars abduction_candidate
+                 in
+                 match gen_b_term ctx ep penv abduction_candidate sort ~spec with
+                 |None -> None
+                 |Some body ->
+                   let ctx = Context.add_b body ctx in
+                   Some (ctx, (acc_case@[Program.{constructor = cons;
+                                                  argNames = new_arg;
+                                                  body = body }])))
            ( Some (ctx,[]))
            cons_list
            penv_args_list
@@ -319,7 +323,7 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
              let data_sort = `DataS data_name in
              let scrutinee_seq = 
                GenEtermsScrutinee.f ep penv abduction_candidate data_sort top_spec
-             |> Seq.map ~f:(fun elm -> (data_name, elm))
+               |> Seq.map ~f:(fun elm -> (data_name, elm))
              in
              scrutinee_seq::acc)
            data_env
@@ -328,20 +332,26 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
        Seq.find_map
          (Seq.round_robin scrutinee_e_seq)
          ~f:(fun (data_name, (scrutinee_e, e_prop, abduction_candidate)) ->
+           let () = Printf.fprintf Log.log_cha "enumerate match %s:\n"
+                                   (Program.to_string_e scrutinee_e)
+           in           
            if Program.size_e scrutinee_e <= 1 then None
            else if is_constructor scrutinee_e then None
            else
              let l = Id.genid "a" in
+             let () = Printf.fprintf Log.log_cha "enumerate match %s:\n"
+                                     (Program.to_string_e scrutinee_e)
+             in
              let penv = PathEnv.add_bind l (`DataS data_name) penv in
              let cons_list = DataType.Env.list_constructor data_env data_name in
-           match gen_match_cases ctx ep penv abduction_candidate
-                                 ~scrutineeInfo:(l,scrutinee_e, Some e_prop, data_name, cons_list)
-                                 sort ~spec
-           with
-           |None -> None
-           |Some cases ->
-             let open Program in
-             Some (PMatch (l, scrutinee_e, cases)))
+             match gen_match_cases ctx ep penv abduction_candidate
+                                   ~scrutineeInfo:(l,scrutinee_e, Some e_prop, data_name, cons_list)
+                                   sort ~spec
+             with
+             |None -> None
+             |Some cases ->
+               let open Program in
+               Some (PMatch (l, scrutinee_e, cases)))
 
            
        

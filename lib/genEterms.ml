@@ -701,12 +701,16 @@ let f ep penv abduction_candidate sort qhorns =
       let penv = PathEnv.add_condition_list
                     (List.map (fun e -> `Base e) abduction_condition)
                     penv
-                |> 
-                  PathEnv.expand 3 ep 
+      in
+      let expand_penv =  PathEnv.expand 3 ep penv in
+      let () =  Log.log_message
+                  ("\nexpand path env :\n(before)\n"^
+                     (PathEnv.to_string penv)^"\n(after)\n"^
+                       (PathEnv.to_string expand_penv))
       in
       (SSeq.append
-         (gen_directory top_ctx ep penv abduction_candidate spec size_max)
-         (f top_ctx ep penv abduction_candidate spec size_max))
+         (gen_directory top_ctx ep expand_penv abduction_candidate spec size_max)
+         (f top_ctx ep expand_penv abduction_candidate spec size_max))
       |> SSeq.to_seq
     )
 

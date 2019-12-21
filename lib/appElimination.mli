@@ -1,5 +1,6 @@
 type solution = BaseLogic.t M.t * (Id.t * Hfl.sort) list * (Hfl.horn list)
 
+val expansion_max:int ref
 (* かえり値はsitaが反映されたhorn *)
 val f:
   BaseLogic.t M.t

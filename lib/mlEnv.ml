@@ -63,6 +63,9 @@ let find id ((smap, _):t) :Hfl.sort =
   try M.find id smap
   with Not_found -> invalid_arg "mlEnv.find: not found"
 
+let mem id ((smap, _):t) :bool =
+  M.mem id smap
+
 let find_heads base_sort ((_, imap):t) :HeadCandidates.t =
   match  SortM.find_opt base_sort imap with
   |Some head_candi -> head_candi
