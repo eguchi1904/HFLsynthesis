@@ -7,12 +7,19 @@ val make:
   -> premise:Hfl.clause list
   -> horns:Hfl.horn list
   -> t
-  
+
+
+type conditional =
+  |RemainExist  of (Id.t * Hfl.sort * Hfl.horn list) list
+  |Abduction of BaseLogic.t
+  |Free 
+
+              
 val solve: start_message:string -> t ->
-(BaseLogic.t M.t * (Id.t * Hfl.sort * Hfl.horn list) list) Base.Sequence.t  
+(BaseLogic.t M.t * conditional) Base.Sequence.t  
 
 (* 保守的に、 *)
-val is_valid: start_message:string -> t -> bool
+val is_valid: start_message:string -> t -> conditional option
 
 (* val split: (Id.t * Hfl.sort) list -> t -> t * (Id.t * (Hfl.qhorn list)) list *)
 

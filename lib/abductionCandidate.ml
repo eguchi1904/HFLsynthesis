@@ -64,7 +64,10 @@ let initialize data_env penv qualifiers ~new_vars t =
        filter penv (new_candidates@t.now@t.candidates)
   in
   {now = [];
-   candidates = candidates'}     
+   candidates = candidates'}
+
+let add e t =
+ {now = e::t.now; candidates = t.candidates}  
 
   
     

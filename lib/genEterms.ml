@@ -107,7 +107,7 @@ module Log:sig
 
   val gen_trial_string: Context.t -> AbductionCandidate.t -> PathEnv.t -> Constraint.t -> string
     
-  val log_trial_result: bool -> unit
+  val log_trial_result: Constraint.conditional option -> unit
 
   val log_abduction: AbductionCandidate.t -> unit
 
@@ -129,12 +129,22 @@ end = struct
       (Constraint.to_string cons)
                           
 
-  let log_trial_result valid =
-    if valid then
+  let log_trial_result conditional_opt =
+    match conditional_opt with
+    |None ->
+      Printf.fprintf
+        log_cha
+        "\n\nTRIAL fail\n\n\n@."
+    |Some (Constraint.Free) ->       
       Printf.fprintf
         log_cha
         "\nTRIAL SUCSESS!\n\n\n@."
-    else
+    |Some (Abduction e) ->
+      Printf.fprintf
+        log_cha
+        "\nTRIAL SUCSESS with abduction condition:%s\n\n\n@."
+        (BaseLogic.p2string e)
+    |Some _ -> 
       Printf.fprintf
         log_cha
         "\n\nTRIAL fail\n\n\n@."
@@ -316,16 +326,27 @@ let gen_vars_by_enumeration:
                          ~horns
                      in
                      let trial_mes = Log.gen_trial_string ctx abduction_candidate penv cons in
-                     let valid = Constraint.is_valid ~start_message:trial_mes cons in
-                     let () = Log.log_trial_result valid in
-                     if  valid then
+                     let conditional_opt =Constraint.is_valid ~start_message:trial_mes cons in
+                     let () = Log.log_trial_result conditional_opt in
+                     match conditional_opt with
+                     |None ->
+                       Seq.Step.Skip(next_candidates)
+                     |Some Free -> 
                        let var_term = Program.Term return_term in
                        Seq.Step.Yield ((var_term,
                                         leaf_prop,
                                         abduction_candidate),
                                        next_candidates)
-                     else
-                       Seq.Step.Skip(next_candidates)
+                     |Some (Abduction e) ->
+                       let var_term = Program.Term return_term in
+                       let abduction_candidate = AbductionCandidate.add e abduction_candidate in
+                       Seq.Step.Yield ((var_term,
+                                        leaf_prop,
+                                        abduction_candidate),
+                                       next_candidates)
+                     |Some (RemainExist _) -> Seq.Step.Skip(next_candidates)
+
+
                 )
       )
   )
@@ -487,7 +508,7 @@ and consist_term_from_exists_var_instances
 
 (* existsはsizeの数より大きいものがくるかもしれない *)
 and gen_term_from_exists_horn
-      ctx ep penv abduction_candidate return_term return_prop sita exists_horns size =
+      ctx ep penv abduction_candidate return_term return_prop sita conditional size =
   let generate_args_by_sita =
     M.filter (fun x _ -> S.mem x (Program.fv_term return_term)) sita
   in
@@ -495,9 +516,35 @@ and gen_term_from_exists_horn
     generate_args_by_sita
     |> M.cardinal  in
   (* +1は、return_term の1*)  
+
+  match conditional with
+  |Constraint.Free ->
+    let gen_e, _, _ as gen_term =
+      consist_term_from_exists_var_instances
+        return_term return_prop ~instances:(sita, []) abduction_candidate
+    in
+    let gen_e_size = Program.size_e gen_e in
+    (assert (gen_e_size = generate_args_by_sita_num + 1));
+    SSeq.append_sequence
+      (Seq.singleton gen_term)
+      ~size:(gen_e_size)
+      SSeq.empty
+  |Abduction e ->
+    let abduction_candidate = AbductionCandidate.add e abduction_candidate in
+    let gen_e, _, _ as gen_term =
+      consist_term_from_exists_var_instances
+        return_term return_prop ~instances:(sita, []) abduction_candidate
+    in
+    let gen_e_size = Program.size_e gen_e in
+    (assert (gen_e_size = generate_args_by_sita_num + 1));
+    SSeq.append_sequence
+      (Seq.singleton gen_term)
+      ~size:(gen_e_size)
+      SSeq.empty    
+  |RemainExist exists_horns ->
   if generate_args_by_sita_num + (List.length exists_horns) + 1 > size then
     SSeq.empty
-  else
+  else    
   let ctx =        (* context更新 *)
     M.fold
       (fun x _  acc ->
@@ -508,21 +555,8 @@ and gen_term_from_exists_horn
       generate_args_by_sita    
       ctx                 
   in
-
   if exists_horns = [] then (* 引数を生成する必要なし *)
-    let gen_e, _, _ as gen_term =
-      consist_term_from_exists_var_instances
-        return_term return_prop ~instances:(sita, []) abduction_candidate
-    in
-    let gen_e_size = Program.size_e gen_e in
-    let () = Log.log_message ("***debug***:enter:gen_term_from..:then\n"^(Context.to_string ctx)) in
-    let () = Log.log_message ("gen_e_size:"^(string_of_int gen_e_size)^"\n") in
-    
-    (assert (gen_e_size = generate_args_by_sita_num + 1));
-    SSeq.append_sequence
-      (Seq.singleton gen_term)
-      ~size:(gen_e_size)
-      SSeq.empty
+    assert false
   else
 
   let exists_var_specs =
@@ -577,9 +611,9 @@ and gen_app_term:Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandidate
            let solutions_seq = Constraint.solve ~start_message:trial_mes cons in
            Seq.map
              solutions_seq
-             ~f:(fun (sita, exists_horns) ->
+             ~f:(fun (sita, conditional) ->
                gen_term_from_exists_horn
-                 ctx ep penv abduction_candidate return_term ret_spec sita exists_horns size
+                 ctx ep penv abduction_candidate return_term ret_spec sita conditional size
              )
            |>
              SSeq.concat ~min_size:(arity+1)

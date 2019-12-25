@@ -7,6 +7,11 @@ type t =
    horns:Hfl.horn list
   }
   
+type conditional =
+  |RemainExist  of (Id.t * Hfl.sort * Hfl.horn list) list
+  |Abduction of BaseLogic.t
+  |Free               
+  
 
 let to_string ({exists = exists; sharedPremise = shared_premise; horns = horn_list;_}:t) =
   let shared_premise_str =
@@ -62,10 +67,25 @@ module Log = struct
     
     
 
-  let log_solution mes (sita, exists_horns) =
+  let log_solution mes (sita, conditional) =
     let sita_str =
       sita2str sita
     in
+    match conditional with
+    |Free ->
+      Printf.fprintf
+        log_cha
+        "%s\n------------------------------\nsita:%s\n conditinal-free\n"
+        mes
+        sita_str    
+    |Abduction e ->
+    Printf.fprintf
+      log_cha
+      "%s\n------------------------------\nsita:%s\n abduction:\n%s"
+      mes
+      sita_str    
+     (BaseLogic.p2string e)
+    |RemainExist exists_horns -> 
     let exists_horns_str =
       List.map
         (fun (x, _, horns) ->
@@ -188,8 +208,6 @@ let top:Hfl.clause = Hfl.top `BoolS
 (*   (ep, shared_premise, []), arg_specs *)
 
 
-
-
   
 let distribute_horn_to_exists_var' ~exists horns =
   let exists_horns, remain =
@@ -213,7 +231,7 @@ let distribute_horn_to_exists_var' ~exists horns =
       )
       remain
   then
-    Some exists_horns
+    Some (RemainExist exists_horns)
   else
     
     let remain_str =
@@ -237,15 +255,23 @@ let subst_base_term_horn sita =
           `Horn (List.map (Hfl.subst_base_term sita) cs,
                  Hfl.subst_base_term sita c)
 
+
+(* let impl here *)
+let try_abduction horns =
+  (ignore horns);
+  Free
         
 let distribute_horn_to_exists_var sita ~exists horns
-    :(Id.t * Hfl.sort * (Hfl.horn list)) list option =
+    :conditional option =
   (* sitaの反映 *)
   let horns = List.map (subst_base_term_horn sita) horns in
   let exists = List.filter      (* sitaで解決していないもの *)
                  (fun (x,_) -> not (M.mem x sita))
                  exists
   in
+  if exists = [] then
+    Some (try_abduction horns)
+  else
   let horns =                   (* 出来るだけ別ける *)
     List.map
       (fun (`Horn (cs, c)) ->
@@ -272,7 +298,8 @@ let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
          (sita, new_exists, horns))
          
   
-  
+
+              
 let solve ~start_message {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
   (* let exists_qhorns, horns = *)
   (*   List.fold_right *)
@@ -318,8 +345,8 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
                 sita ~exists:exists_sum horns
         with
         |None ->  Base.Sequence.empty (* assert false *)
-        |Some exists_horns ->        
-          Base.Sequence.singleton (sita, exists_horns)
+        |Some conditional ->        
+          Base.Sequence.singleton (sita, conditional)
       )
   in
   (* sequenceから、要素を取り出そうとするたびにlogを取るように改変↓
@@ -360,9 +387,10 @@ let solve ~start_message {exists = exists; sharedPremise = premise; horns = horn
       
 let is_valid ~start_message t =
   match Base.Sequence.hd (solve ~start_message t) with
-  |None -> false
-  |Some (_, []) -> true
-  |Some _ -> false              (* 保守的に *)
+  |None -> None
+  |Some (_, Free) -> Some Free
+  |Some (_, Abduction e) -> Some (Abduction e)              (* 保守的に *)
+  |Some (_, RemainExist _ ) -> None
   
   
   

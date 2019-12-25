@@ -27,9 +27,6 @@ exists (x:int) (xs:list).
 let [@spec dec] d (n:int) (v:int) =
   (v = (n - 1))
 
-let [@spec add] add (n:int) (m:int) (v:int) =
-  (v = (n + m))
-
 
 let[@spec memo_fib] fib_memo (n:int) (l:list) =
       (n >= 0) ==> fib_list n l

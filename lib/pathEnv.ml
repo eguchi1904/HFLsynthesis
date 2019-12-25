@@ -120,8 +120,6 @@ let add_condition_eq_env (c:Hfl.clause) env =
   
   
     
-         
-    
 let add_condition c env =
   match c with
   |`App _ as app_term -> 
@@ -131,8 +129,7 @@ let add_condition c env =
    ;sortEnv  =env.sortEnv}
 
   | _ ->
-     let c =add_measure_info (!DataType.Env.global_ref) c
-     in
+     let c =add_measure_info (!DataType.Env.global_ref) c in
      let open BaseLogic in
     {yetExpandApps = env.yetExpandApps;
      condition = c::env.condition

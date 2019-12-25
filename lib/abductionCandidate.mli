@@ -3,6 +3,8 @@ type t
 
 val empty:t
 
+val add: BaseLogic.t -> t -> t
+
 val to_string: t -> string
   
 val get: t -> BaseLogic.t list
