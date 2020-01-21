@@ -11,7 +11,7 @@ val make:
 
 type conditional =
   |RemainExist  of (Id.t * Hfl.sort * Hfl.horn list) list
-  |Abduction of BaseLogic.t
+  |Abduction of (BaseLogic.t list)
   |Free 
 
               

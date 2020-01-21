@@ -139,11 +139,11 @@ end = struct
       Printf.fprintf
         log_cha
         "\nTRIAL SUCSESS!\n\n\n@."
-    |Some (Abduction e) ->
+    |Some (Abduction es) ->
       Printf.fprintf
         log_cha
         "\nTRIAL SUCSESS with abduction condition:%s\n\n\n@."
-        (BaseLogic.p2string e)
+        (List.map BaseLogic.p2string es |> String.concat "; ")
     |Some _ -> 
       Printf.fprintf
         log_cha
@@ -339,7 +339,7 @@ let gen_vars_by_enumeration:
                                        next_candidates)
                      |Some (Abduction e) ->
                        let var_term = Program.Term return_term in
-                       let abduction_candidate = AbductionCandidate.add e abduction_candidate in
+                       let abduction_candidate = AbductionCandidate.add_list e abduction_candidate in
                        Seq.Step.Yield ((var_term,
                                         leaf_prop,
                                         abduction_candidate),
@@ -530,7 +530,7 @@ and gen_term_from_exists_horn
       ~size:(gen_e_size)
       SSeq.empty
   |Abduction e ->
-    let abduction_candidate = AbductionCandidate.add e abduction_candidate in
+    let abduction_candidate = AbductionCandidate.add_list e abduction_candidate in
     let gen_e, _, _ as gen_term =
       consist_term_from_exists_var_instances
         return_term return_prop ~instances:(sita, []) abduction_candidate

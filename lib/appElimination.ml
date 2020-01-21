@@ -243,7 +243,8 @@ let is_exists_free_horn ~exists (`Horn (cs, c)) =
   
 (* ここを変える必要がある *)
 let rec pre_check_horns sita ~premise ~exists horns =
-  match horns with
+  (* Some horns *)
+   match horns with
   |[] -> Some []
   | (`Horn (_, `Base (BaseLogic.Bool true))) :: xs ->
      pre_check_horns sita ~premise ~exists xs

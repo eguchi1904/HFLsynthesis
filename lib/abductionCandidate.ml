@@ -67,7 +67,10 @@ let initialize data_env penv qualifiers ~new_vars t =
    candidates = candidates'}
 
 let add e t =
- {now = e::t.now; candidates = t.candidates}  
+  {now = e::t.now; candidates = t.candidates}
+
+let add_list es t =
+ {now = es@t.now; candidates = t.candidates}    
 
   
     

@@ -5,6 +5,8 @@ val empty:t
 
 val add: BaseLogic.t -> t -> t
 
+val add_list: BaseLogic.t list -> t -> t
+
 val to_string: t -> string
   
 val get: t -> BaseLogic.t list

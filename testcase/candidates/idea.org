@@ -1,0 +1,619 @@
+
+* できても良さそうな候補
+** sort
+let rec insert x l =
+  match l with
+  |[] -> [x]
+  |y::ys ->
+    if x <= y then
+      Cons x l
+    else
+      Cons y (insert x ys)
+
+
+
+sorted l && l = y::ys && y < x
+--------------------------------------------------
+  Cons ?z ?zs => (sorted v) && (elem v = elem l ++ [x])
+
+
+(sorted (z::zs)) && (elem z::zs = elem l ++ [x])
+
+まあ、ここでzへの奴はわからないから、enumerateする話をして、
+?z -> yとなった時は
+
+(sorted (y::zs)) && (elem y::zs = elem l ++ [x])
+
+がzsへの要求になるということを言うか。
+
+insertの再帰呼び出しが行われて、
+insert ?z ?zs となると
+
+(sorted zs)
+sorted iv && elem iv = elem zs ++ [z] => 
+  (sorted (y::iv)) && (elem y::iv = elem l ++ [x])
+
+がzとzsに要求されると。
+ここでzs -> ysと代入されて
+
+
+sorted iv && elem iv = elem ys ++ [z] => 
+ (sorted (y::iv) && (elem y::iv = elem l ++ [x])
+
+ここで z ->  x とすると上が満たされる？まじ？
+まあ、確かに、満たされるな。
+うん、でも、わかりにくいけども
+
+
+sorted l && l = y::ys && y < x
+--------------------------------------------------
+sorted iv && elem iv = elem ys + [z] => 
+ (sorted (y::iv) && (elem y::iv = elem l ++ [x])
+
+ここでさ、eager instできないのかな(まあ分からんな、できるかもしれないけど。ちょっと拡張が必要だし）
+
+sorted l && l = y::ys && y < x 
+elem l = elem ys + [y]
+--------------------------------------------------
+\forall(iv.
+  sorted iv && elem iv = elem ys + [z] => 
+    (sorted (y::iv) && (elem iv + [y]= elem l ++ [x]))
+
+
+
+
+elem l = elem ys + [y] && elem iv = elem ys + [z]
+--------------------------------------------------
+(elem iv + [y]= elem l ++ [x])
+
+で
+zをxにすると、いける。けど、そこをparameterにすることはできるかもしれない？
+
+elem ys + [y;z]= elem ys + [y;x]
+これをinstantiateできるようなアルゴリズムをparameterとしてやると言う手はある。
+
+
+** div n m : 商とあまりを求める
+** gcd n m: 最大公約数、仕様は素朴な定義
+
+** sumlist
+
+if n<= 0 then n
+else
+ match memo_sum (n-1) with
+  |Nil -> Cons n Nil
+
+sum_list (n-1) a && a = Nil
+
+len nil = 0
+len a = len xs + 1 && len xs >0
+a = nil
+でunsatだよな
+
+| Cons y ys ->
+
+sum_list (n-1) a && a = Cons y ys && n >= 1
+--------------------------------------------------
+sum_list n v
+
+
+sum_list (n-1) a && 
+ sum (n-1) y && sum_list (n-2) ys
+a = COns y ys && n>= 1
+--------------------------------------------------
+sum_list n v
+
+--展開-->
+\exists. x.xs
+(v = Cons x xs) &&& sum n x &&& sum_list (n-1) xs
+
+--sum展開--> 
+\exists. x.xs.v1
+(v = Cons x xs) &&& 
+       (sum (n-1) v1 &&& x = v1 + n)
+sum_list (n-1) xs
+
+
+まず、
+
+v1 = y
+x =  y + n
+
+
+
+
+
+
+
+
+
+
+
+** fibの末尾再帰version
+let rec tail_fib n a b  =
+  if n < 1 then
+    a
+  else
+    tail_fib (n-1) (a+b) a ***(1)
+
+
+環境
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+(fib i' (a+b) && fib (i'-1) a `` (n-1 >= 0)
+  ==>
+   fib ((n-1)+i') v)
+==>
+ fib (n+i) v
+
+
+i' = i+1
+にinstantiateすればあっていることがわかる。
+が、これをやるべきなのかな。
+head適用自伝で、forallの削除をすべきで、
+これはparameterの推定と同じようにできたりしないかな。
+引数へは
+fib (i+1) (a+b)　 ***(2)
+fib i a
+が要求される
+(2)では、
+
+fib i a && fib (i-1) b
+--------------------------------------------------
+fib (i+1) (a+b)  
+展開
+(i+1 <= 1 && a+b = i+1)
+|||
+((fib i v1) &&& (fib (i-1) v2) &&& (a+b) = v1 + v2))
+
+let x = int;
+** fibの末尾再帰version:(引数+1ver)
+let rec tail_fib n i a b  =
+  if n < 1 then
+    a
+  else
+    tail_fib n' i' a' b'
+
+
+then説は
+
+n >=0 &&n < 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+v = a => fib (n+i) v
+
+直接行けるような気もするんだが.
+そこで無理してこっちで処理してるのがいけないのか...
+ここでちゃんとn = 0というのが導出できていれば良かった。
+
+
+
+展開
+n < 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+v = a > (n+i <= 1 && v = n+i)
+
+
+
+
+一挙に引数が求められるか。
+
+環境
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+ (fib i' a')&&&(fib (i'-1) b')&&(n' >= 0)　&& (n' < n)
+   ==>
+   (fib (n'+i') v)
+ ==>
+  fib (n+i) v
+
+
+
+2つに分解されて
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+ (fib i' a')&&&(fib (i'-1) b')&&(n' >= 0)&&(n' < n)
+
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b) && (fib (n'+i') v)
+--------------------------------------------------
+fib (n+i) v
+
+
+
+うまく行かぬpattern
+[fib i a => fib i' a']
+[fib (i-1) b => fib (i'-1) b']
+[fib (n'+i') v => fib (n+i) v]
+
+例えばしたからやって、
+
+i' => n - n' +i
+
+(i-1) = (n - n' +i) - 1　から
+n' => n
+
+i = i'
+
+で、
+i = n - n' + i
+ = n - n  + i
+ = i
+でここまで、good
+
+だが、n' <  nに引っかかるわけだ。
+
+なんで、別の割り当てを考えたくなる。
+
+なんで、ちゃんとorのことを考えたい
+というか、展開も含めて全て網羅する必要があるな
+
+以下の4つに分解され、それぞれ独立にgoする
+
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+ (fib i' a')
+
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+(fib (i'-1) b')
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+(n' >= 0)&&(n' < n)
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b) && (fib (n'+i') v)
+--------------------------------------------------
+fib (n+i) v
+
+
+正解patternは、 最初のだけ展開して
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+  Exists
+    ([(v1:int) (v2:int)],
+     (i' <= 1 && i' = a')
+     |||
+       ((fib (n - 1) v1) &&& (fib (n-2) v2) &&& v = v1 + v2)
+    )
+
+
+fib i a 
+--------------------------------------------------
+fib (i'-1) b'
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+(n' >= 0)&&(n' < n)
+
+
+(fib (n'+i') v)
+--------------------------------------------------
+fib (n+i) v
+
+下3つを最初に解いて、
+[i' = i +1]
+[a = b']
+[n'+i' = n + i]
+
+上からとくと
+i' = i + 1
+b' = a
+n' = n - 1
+
+下からでも同じ結果。
+
+これで最初のを解くと、
+
+n >= 1 &&(fib i a)&&&(fib (i-1) b)
+--------------------------------------------------
+Exists (n', i', a', b')
+  Exists
+    ([(v1:int) (v2:int)],
+     (i + 1 <= 1 && i+1 = a')
+     |||
+       ((fib (i) v1) &&& (fib (i-1) v2) &&& a' = v1 + v2)
+    )
+
+orの下を選ぶと、
+
+a' = a + b　が出てくる
+
+ここのorに関しても良い感じにsequenceで非決定性を表すか...
+
+そうすると、探索において、結構z3を削れるな。この例なら、だけども
+** fib_memo
+
+let rec fib_memo n =
+  if n < 0 then Nil
+  else
+    match fib_memo (n-1) with
+    |Nil -> Cons n Nil
+    |(Cons x xs as l)->
+       (match xs with
+         |Nil -> Cons n l
+         |Cons y ys -> Cons (x+y) l);;
+
+検証:
+let l = fib_memo (n-1) in
+match l with
+ で環境は、
+|  Nil -> 
+ fib_list (n-1) l && l = Nil
+--------------------------------------------------
+   v = Cons n Nil ==> fib_list n Nil
+
+環境のexpansionによって、
+ n>=0; fib_list (n-1) l && l = Nil && (n-1) < 0 
+--------------------------------------------------
+   v = Cons n Nil  ==> fib_list n v
+-> expand
+
+ v = Cons n Nil  ==>
+ \exists.x,xs (v = Cons x xs &&& fib n x &&& fib_list (n-1) xs)
+
+--> equaltiy簡約 (x = n,  xs = Nil
+ v = Cons n Nil  ==>
+fib n n && fib_list (n-1) Nil
+これは、fibの展開をもう一回行えば、fib 1 1が成立することが分かるので、OK
+
+
+
+|Cons x xs as l)->(match xs with
+                     |Nil -> Cons n l -> 
+ a
+
+環境
+ fib_list (n-1) l && l = Cons x xs && xs = Nil
+--------------------------------------------------
+v = Cons n l ==> fib_list n v
+
+
+環境のfib_listのexpansionで、fib_list (n-1) (Cons x Nil)
+n>1 (l = Cons x xs &&& fib (n-1) x &&& fib_list (n-2) Nil)
+環境のexpansionで
+(l = Cons x xs &&& fib (n-1) x &&& fib_list (n-2) Nil &&& (n-2) < 0 && Nil = Nil && 
+--------------------------------------------------
+v = Cons n l ==> fib_list n v
+
+
+結果として、n=1がわかり、
+帰り値の
+------expand ------>
+v = Cons n l ===> 
+   (v = Cons x xs &&& fib n x &&& fib_list (n-1) xs)  
+
+がでてくるが、これは全てOK fib n n が成立することは、fibを展開すれば分かる。
+
+|Cons x xs as l)->(match xs with
+                   | Cons y ys -> Cons (x+y) l);;
+
+
+
+ fib_list (n-1) l && l = Cons x xs && xs = Cons y ys
+展開
+
+fib (n-1) x  && fib (n-2) y &&& fib_list (n-3) ys
+--------------------------------------------------
+v =  Cons (x+y) l  ===>  fib_list n v
+
+v =  Cons (x+y) l  ===>  {
+           (l = Cons (x+y) l &&& fib n (x+y) &&& fib_list (n-1) l)
+fib_list n v
+
+うーん成り立つ。
+行けるぞ
+
+行けるし、しかも、論理がわのmatchに関しては特別なことをしないくて良いな
+** memo_fibで、abductionが直接できるかについて   
+
+let rec fib_memo n = 
+  if n < 0 then Nil
+  else if n <= 1 then Cons n Nil
+  else
+    match fib_memo (n-1) with
+    |Nil -> assert false
+    |(Cons x xs as l)->
+       (match xs with
+         |Nil -> Cons n l
+         |Cons y ys -> Cons (x+y) l)
+
+
+で、
+
+n < 1  v = Cons n Nil => 
+v =  Cons n Nil && fib n n && fib_list (n-1) Nil
+
+n >= 2という状況下での生成。
+
+(fib n v)という仕様
+---展開-->
+(v = Cons x xs &&& fib n x &&& fib_list (n-1) xs)
+(v = Cons x xs &&& 
+       (x = v1+v2&& fib (n-1) v1 && fib (n-2) v2)
+               &&& fib_list (n-1) xs)
+
+
+これで、
+Cons (?v1+?v2) ?xs
+
+
+xs:    fib_list (n-1) xs
+v1:    fib (n-1) v1
+v2:    fib (n-2) v2
+
+
+しかし、これはv1 v2が生成できない
+
+中のfibは展開せんで
+(v = Cons x xs &&& 
+　　　　　fib n x
+               &&& fib_list (n-1) xs)
+
+
+Cons ?x ?xs
+
+xs:   fib_list (n-1) xs
+
+
+
+
+
+match fib_memo (n-1) with
+    | Nil -> assert false  
+
+ニついて
+FIB_LIST (n-1) a
+
+a = nil
+
+でfib_listを展開
+** memo fib 2
+  if n < 1 then Cons n Nil
+  else
+  let l = fib_memo (n-1) in
+    match l with
+    |Nil -> assert false
+    |(Cons x xs as l)->
+       (match xs with
+         |Nil -> Cons n l
+         |Cons y ys -> Cons (x+y) l)
+
+
+
+
+|Nil -> Cons n l
+n >= 1 && fib_list (n-1) l && l = Cons x xs && xs = Nil
+--------------------------------------------------
+l = Cons n l && fib n y && fib_list (n-1) l
+
+
+n >= 1 && fib_list (n-1) l && l = Cons x xs && xs = Nil
+--------------------------------------------------
+l = Cons n l && fib n n && fib_list (n-1) l
+
+fib n n をどう推論するのか。
+
+上をexpandする必要があるな。
+n >= 1 && fib_list (n-1) l && fib (n-1) x && fib_list (n-2) xs && l = Cons x xs && xs = Nil
+
+もう一回fib_listやると出るのか
+
+n >= 1 && fib_list (n-1) l 
+　　　　&& fib (n-1) x && fib_list (n-2) xs
+　　　　　 && l = Cons x xs && xs = Nil
+
+
+n >= 1 && fib_list (n-1) l 
+　　　　&& fib (n-1) x && fib_list (n-2) xs
+       && (n-2) < 0 && --> 
+　　　　　 && l = Cons x xs && xs = Nil
+
+| Cons y ys -> Cons (x+y) l 
+a
+n >= 1 && fib_list (n-1) a && a = Cons x xs && xs = Cons y ys
+--------------------------------------------------
+cons_list n _v
+
+環境をexpand
+n >= 1 && fib_list (n-1) a && a = Cons x xs && xs = Cons y ys
+       && fib (n-1) x && fib_list (n-2) xs
+                   &&  fib (n-2) y && fib_list (n-3) ys
+--------------------------------------------------
+
+
+\exist z zs.
+   _v = Cons z zs && fib n z && fib_list (n-1) zs
+結論のfibをexpand
+
+\exist z zs.
+   _v = Cons z zs && (fib n z) && fib_list (n-1) zs
+                 z = v1+v2 && fib (n-1) v1 && fib (n-2) v2
+
+
+** abduction
+
+
+
+** log
+
+n => 2^i <= n <= 2^(i+1)
+
+** 階乗:tail rec(accumulation 引数つき）
+** suffixの列挙
+let gen_suffix l = 
+ match l  with 
+  [] -> [[]] 
+  x::xs -> 
+   l::(gen_suffix xs)
+
+
+↓を示す必要あり
+_llen v' = _len xs + 1
+(rList
+  (fun elm -> is_suffix xs elm)
+  (fun elm_i elm_j -> elm_i <> elm_j)
+ 　v'
+)
+&&
+l = x::xs
+v = l::v'
+--------------------------------------------------
+_llen v = _len l + 1
+(rList
+  (fun elm -> is_suffix l elm)
+  (fun elm_i elm_j -> elm_i <> elm_j)
+ 　v
+)
+
+
+rListの展開
+is_suffix l l
+(rList
+  (fun elm -> is_suffix l elm && elm <> l)
+  (fun elm_i elm_j -> elm_i <> elm_j)
+ 　v'
+)
+
+そうだな。
+十分条件として
+
+is_suffix xs elm ==> is_suffix l elm && elm <> l (3)
+elm_i <> elm_j ==> elm_i <> elm_j
+
+(3)は、
+l = x::xsで展開して
+len elm <= len xs
+
+len elm <= len l &&
+(elm = l ||| is_suffix xs elm) && elm <> l
+
+l = x::xs && is_suffix xs elm => l <> elm
+が必要となり厳しさありだな。
+なので、is_suffixをちょっとズルする必要があって、
+
+** split l del: 区切り文字分割
+[[file:~/research/master/tools/HFLsynthesis/testcase/anser/split_str.txt][file:~/research/master/tools/HFLsynthesis/testcase/anser/split_str.txt]]
+
+** reshape l n m: n * m行列(list of list)への変換
+
+** [a1,a2,a3,...] -> [a1,a3,...],[a2,a4,....] 
+* 難しそう
+** リストの並び替えの列挙: n!が表現できるので
+** prefixの列挙
+* 実装に近い仕様、別の実装を見つけるような方向
+** fib n:
+* 仕様＝実装のような候補
+** sub_list
+** is_prefix
+** mul
+** intersperse
+** drop n l : n番目の要素を除外

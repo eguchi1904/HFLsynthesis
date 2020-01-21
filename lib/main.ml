@@ -28,7 +28,7 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
      with
      |Invalid_argument mes ->
        let ed = Sys.time () in       
-       Format.printf "synthesize FAIL: *%s\ntime:%f\ntime of z3:%f\niteration:%d
+       Format.printf "synthesis FAIL: *%s\ntime:%f\ntime of z3:%f\niteration:%d
                       @."
                      mes
                      (ed -. st)

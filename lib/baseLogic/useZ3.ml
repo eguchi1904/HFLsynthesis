@@ -325,7 +325,7 @@ let stop_z3_clock () =
   let ed = Sys.time () in
   (z3_t := !z3_t +. (ed -. !st))
   
-
+(* let memo:(Expr.expr, bool) Hashtbl.t = Hashtbl.create 1234 *)
          
 let is_valid (e:Expr.expr) =
   (start_z3_clock ());
