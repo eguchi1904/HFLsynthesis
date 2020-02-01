@@ -42,6 +42,8 @@ let syntheis synthesizer ep (var, (pathenv, sort)) =
 let speclist = [("-e", Arg.Int (fun i -> e_term_max_size:= i), "e term max size");
                 ("-m", Arg.Int (fun i -> scrutinee_max_size:= i), "scrutinee_max_size");
                 ("-p",  Arg.Int (fun i -> AppElimination.expansion_max:= i), "max expansion");
+                ("-s", Arg.Int (fun i ->  if i = 1 then
+                                             Constraint.case_split :=true), "case split")
 ]
 
 let f () =

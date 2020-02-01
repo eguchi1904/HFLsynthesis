@@ -508,12 +508,23 @@ and solve_application:
 
 and is_fowarded_by_expansion
       ~before:(sita_before, binds)
-      ~after:sita_after horns =
+      ~after:(sita_after, new_exists) horns =
   let before_exists = List.filter binds ~f:(fun (x,_) -> not (M.mem x sita_before)) in
-  (M.equal (=) sita_before sita_after)||
-  (List.exists
+  (* (M.equal (=) sita_before sita_after)|| *)
+  ((List.exists
     before_exists               (* before existsで解決したものがある *)
     ~f:(fun (x,_) -> M.mem x sita_after))
+  && (List.for_all              (* new_existsが、before_existsの解決に使われている *)
+        new_exists
+        ~f:(fun (new_exist, _) ->
+          List.exists
+            before_exists
+            ~f:(fun (x,_) ->
+              match M.find_opt x sita_after with
+              |None -> false
+              |Some e -> S.mem new_exist (BaseLogic.fv_include_v e))
+        )
+     ))
   ||horns = []
 
 and solve_application_by_expand:
@@ -570,7 +581,7 @@ and solve_application_by_expand:
                     (* expandして、結果existが増えることを許すなら->  *)
                     if (is_fowarded_by_expansion
                           ~before:(sita, binds)
-                          ~after:sita_after_expand
+                          ~after:(sita_after_expand, exists')
                           horns)
                     then
                       let exists=(exists:> (Id.t * Hfl.sort)list) in

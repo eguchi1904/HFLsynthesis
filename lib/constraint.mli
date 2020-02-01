@@ -1,5 +1,7 @@
 type t
 
+val case_split: bool ref
+
 val to_string:t -> string
 val make:
   Hfl.Equations.t 

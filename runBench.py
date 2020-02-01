@@ -49,6 +49,7 @@ def runSynthesizer(name, args):
                              )
 
     proc_stdout = proc.stdout.decode("utf8")
+    print(proc_stdout)
     if is_success(proc_stdout):
         time = extract_time(proc_stdout)
         solver_time = extract_solver_time(proc_stdout)
@@ -84,6 +85,7 @@ def runBenchmarks(benchmarks):
         
     print("--------------------------------------------------")
     print("benchmark end")
+    print_result_list(result_list)
 
         
 if __name__ == '__main__':

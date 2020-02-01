@@ -1,5 +1,7 @@
 open Printf
 
+let case_split = ref false
+
 type t =
   {equations:Hfl.Equations.t;
    exists: (Id.t * Hfl.sort) list;
@@ -110,7 +112,7 @@ module Log = struct
               
 
 end
-  
+
        
 let rec separate_forall_rec (qhorn:Hfl.qhorn) acc_binds =
   match qhorn with
@@ -121,7 +123,44 @@ let rec separate_forall_rec (qhorn:Hfl.qhorn) acc_binds =
 
 let separate_forall qhorn =
   separate_forall_rec qhorn []
+
+
+let rec case_split_rec = function
+  | (`Or (c1, c2))::other ->
+    let splited_other = case_split_rec other in
+    (List.map (fun cs -> c1::cs) splited_other)
+    @(List.map (fun cs -> c2::cs) splited_other)
+  | [] -> [[]]
+      
   
+let toplevel_case_split  {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =
+  if not !case_split  then {exists = exists; sharedPremise = premise; horns = horns;equations = ep}
+else
+  let premise =
+    premise
+    |> List.map (fun c -> Hfl.separate_by_and c)
+    |>
+      List.concat
+  in
+  let or_clauses, other_clauses =
+    Base.List.partition_map
+      premise
+      ~f:(function | (`Or _ as c) -> `Fst c  | c -> `Snd c)
+  in
+  let splited_or_caluses = case_split_rec or_clauses in
+  let horns: Hfl.horn list =
+    List.map
+      (fun (`Horn (cs, c)) ->
+        List.map
+          (fun premise_or_case ->
+            let premise_or_case = (premise_or_case:> (Hfl.clause) list) in
+            ( `Horn (premise_or_case@cs, c)))
+          splited_or_caluses)
+      horns
+    |>
+      List.concat
+  in
+  {exists = exists; sharedPremise = other_clauses; horns = horns;equations = ep}
 
        
 let make
@@ -129,10 +168,11 @@ let make
       ~exists ~premise ~horns
   : t
   =
-  {equations = ep;
+ {equations = ep;
    exists = exists;
    sharedPremise = premise;
    horns = horns}
+(* |> toplevel_case_split *)
 
 
   
@@ -207,7 +247,10 @@ let top:Hfl.clause = Hfl.top `BoolS
 (*   in *)
 (*   (ep, shared_premise, []), arg_specs *)
 
-
+         
+  
+  
+  
   
 let distribute_horn_to_exists_var' ~exists horns =
   let exists_horns, remain =
@@ -321,8 +364,7 @@ let solve_horn sita ~exists ep shared_premise (`Horn (premise, result)) =
              horns
          in
          (sita, new_exists, horns))
-         
-  
+
 
               
 let solve ~start_message {exists = exists; sharedPremise = premise; horns = horns;equations = ep} =

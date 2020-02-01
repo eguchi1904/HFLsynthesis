@@ -180,7 +180,7 @@ let rec cut_unsat_path_from_or condition (`Or (c1, c2)) =
 
 and cut_unsat_path conditions c =
   let cs = Hfl.separate_by_and c in
-  let or_clauses, other_clauses = n
+  let or_clauses, other_clauses =
     List.partition_map
       cs
       ~f:(function | (`Or _ as c) ->`Fst c | (_ as c) -> `Snd c)
@@ -293,24 +293,27 @@ let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
           let body_other_cs = List.map ~f:(Hfl.subst_base_term sita ) body_other_cs in
           Some body_other_cs
         else                    (* exists が全て決まらなかった場合 *)
-          let body_other_cs =
-            body_other_cs
-            (* 未解決のexistが含まれれるclauseをfilterする *)
-            |> List.filter
-                 ~f:(fun c ->
-                   not (List.exists ~f:(fun x -> S.mem x (Hfl.fv c)) remain_exists))
-            |> List.map ~f:(Hfl.subst_base_term sita )
-          in
-          if body_other_cs = [] then
-            (* let () = Format.eprintf "\nnone~~~\n@." in *)
-            None
-          else
-            let body_other_cs_str = 
-              List.map ~f:(Hfl.clause_to_string) body_other_cs
-              |> String.concat "; "
-            in
-            (* let () = Format.eprintf "\nreturn:%s@." body_other_cs_str in *)
-            Some body_other_cs
+          let body_other_cs = List.map ~f:(Hfl.subst_base_term sita ) body_other_cs in
+          Some body_other_cs          
+
+          (* let body_other_cs =
+           *   body_other_cs
+           *   (\* 未解決のexistが含まれれるclauseをfilterする *\)
+           *   |> List.filter
+           *        ~f:(fun c ->
+           *          not (List.exists ~f:(fun x -> S.mem x (Hfl.fv c)) remain_exists))
+           *   |> List.map ~f:(Hfl.subst_base_term sita )
+           * in
+           * if body_other_cs = [] then
+           *   (\* let () = Format.eprintf "\nnone~~~\n@." in *\)
+           *   None
+           * else
+           *   let body_other_cs_str = 
+           *     List.map ~f:(Hfl.clause_to_string) body_other_cs
+           *     |> String.concat "; "
+           *   in
+           *   (\* let () = Format.eprintf "\nreturn:%s@." body_other_cs_str in *\)
+           *   Some body_other_cs *)
 
 
              

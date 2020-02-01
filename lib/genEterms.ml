@@ -704,7 +704,48 @@ let gen_directory: Context.t -> Hfl.Equations.t -> PathEnv.t -> AbductionCandida
         |> SSeq.concat ~min_size:1
     )
 
+
+
+
+let rec case_split_rec = function
+  | (`Or (c1, c2))::other ->
+    let splited_other = case_split_rec other in
+    (List.map (fun cs -> c1::cs) splited_other)
+    @(List.map (fun cs -> c2::cs) splited_other)
+  | [] -> [[]]
       
+(* let case_split = ref false   *)
+let toplevel_case_split  premise horns =
+(*   if not !Constraint.case_split  then horns
+ * else *)
+  let premise =
+    premise
+    |> List.map (fun c -> Hfl.separate_by_and c)
+    |>
+      List.concat
+  in
+  let or_clauses, other_clauses =
+    Base.List.partition_map
+      premise
+      ~f:(function | (`Or _ as c) -> `Fst c  | c -> `Snd c)
+  in
+  let splited_or_caluses = case_split_rec or_clauses in
+  let horns: Hfl.horn list =
+    List.map
+      (fun (`Horn (cs, c)) ->
+        List.map
+          (fun premise_or_case ->
+            let premise_or_case = (premise_or_case:> (Hfl.clause) list) in
+            ( `Horn (premise_or_case@cs, c)))
+          splited_or_caluses)
+      horns
+    |>
+      List.concat
+  in
+  horns
+
+       
+
     
 let f ep penv abduction_candidate sort qhorns =
   let horns =
@@ -712,7 +753,7 @@ let f ep penv abduction_candidate sort qhorns =
                        | _ -> invalid_arg "genEterm: quantifyer not support")
              qhorns
   in
-  let spec = Spec.{sort = sort;valid = horns; sat = None } in
+
   (* let () = Memo.clear memo in   *)
   
   let abduction_candidates_sequence =
@@ -742,6 +783,8 @@ let f ep penv abduction_candidate sort qhorns =
                      (PathEnv.to_string penv)^"\n(after)\n"^
                        (PathEnv.to_string expand_penv))
       in
+      (* let horns = toplevel_case_split (PathEnv.extract_condition expand_penv) horns in *)
+      let spec = Spec.{sort = sort;valid = horns; sat = None } in
       (SSeq.append
          (gen_directory top_ctx ep expand_penv abduction_candidate spec size_max)
          (f top_ctx ep expand_penv abduction_candidate spec size_max))
