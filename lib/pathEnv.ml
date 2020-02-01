@@ -34,7 +34,7 @@ let to_string t =
     
     
 let extract_measure_info data_env c=
-let open BaseLogic in
+  let open BaseLogic in
   match c with
     | `Base (Eq (Var (DataS (data,[]), l),
                  Cons (_, cons, real_args)))
@@ -80,6 +80,7 @@ let open BaseLogic in
     |`Or (c1, c2) ->
        `Or (add_measure_info data_env c1, add_measure_info data_env c2)
     |_ -> c
+
 
 
 let update_eq_env_be_baselogic_term base_e eq_env =
@@ -179,7 +180,7 @@ let rec cut_unsat_path_from_or condition (`Or (c1, c2)) =
 
 and cut_unsat_path conditions c =
   let cs = Hfl.separate_by_and c in
-  let or_clauses, other_clauses =
+  let or_clauses, other_clauses = n
     List.partition_map
       cs
       ~f:(function | (`Or _ as c) ->`Fst c | (_ as c) -> `Snd c)
@@ -191,7 +192,9 @@ and cut_unsat_path conditions c =
     |> extract_condition
   in
   let check_clauses_z3 =
-    check_clauses |> List.map ~f:UseZ3.clause_to_z3_expr |> List.map ~f:fst
+    check_clauses
+    |> List.map ~f:UseZ3.clause_to_z3_expr
+    |> List.map ~f:fst
   in
   let is_sat = UseZ3.bind_and_list check_clauses_z3
                |> UseZ3.is_satisfiable
@@ -213,7 +216,6 @@ and cut_unsat_path conditions c =
     else
       Some (other_clauses@(List.concat or_sat_clauses))
 
-          
 
 
 (* 今はとりあえず、単純に全ての等号をとってくる *)
@@ -227,6 +229,7 @@ let separate_eq_cons_for_exists_instantiation ~exists:exists' cs =
       
   
 let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
+  (* let () = Format.eprintf "try expand:%s@." (Id.to_string_readable head) in *)
   match Hfl.Equations.find ep head with
   |None -> assert false       
   |Some (_, {params = params; args = args; body = qhorn}) ->
@@ -252,7 +255,12 @@ let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
     (assert (cs = []));            (* not impl *)
     match cut_unsat_path conditions c with
     |None -> Some [`Base (BaseLogic.Bool false) ] (* unsatであることが発覚 *)
-    |Some body_cs -> 
+    |Some body_cs ->
+      let body_cs_str = 
+          List.map ~f:(Hfl.clause_to_string) body_cs
+          |> String.concat "; "
+      in
+      (* let () = Format.eprintf "body is...:\n%s@." body_cs_str in *)
     if
       List.for_all              (* existsがbody_csに出てこない *)
         ~f:(fun c ->
@@ -269,11 +277,41 @@ let try_expand ep eq_env conditions (`App  Hfl.{head = head; args = arg_cs;_}) =
       match Base.Sequence.hd (SolveEquality.f ~exists:exists_for_eq eq_env eq_cons) with
       |None -> None       
       |Some sita ->
-        if List.for_all exists_for_eq ~f:(fun x -> M.mem x sita) then
+        let sita_str =
+          M.fold
+            (fun i e acc ->
+              (Id.to_string_readable i)^"-->"
+              ^(BaseLogic.p2string e)
+              ^"; "
+              ^acc)
+            sita
+            ""
+        in 
+        (* let () = Format.eprintf "  sita:%s@." sita_str in *)
+        let remain_exists = List.filter  ~f:(fun x -> not (M.mem x sita)) exists_for_eq in
+        if remain_exists = [] then
           let body_other_cs = List.map ~f:(Hfl.subst_base_term sita ) body_other_cs in
           Some body_other_cs
         else                    (* exists が全て決まらなかった場合 *)
-          None
+          let body_other_cs =
+            body_other_cs
+            (* 未解決のexistが含まれれるclauseをfilterする *)
+            |> List.filter
+                 ~f:(fun c ->
+                   not (List.exists ~f:(fun x -> S.mem x (Hfl.fv c)) remain_exists))
+            |> List.map ~f:(Hfl.subst_base_term sita )
+          in
+          if body_other_cs = [] then
+            (* let () = Format.eprintf "\nnone~~~\n@." in *)
+            None
+          else
+            let body_other_cs_str = 
+              List.map ~f:(Hfl.clause_to_string) body_other_cs
+              |> String.concat "; "
+            in
+            (* let () = Format.eprintf "\nreturn:%s@." body_other_cs_str in *)
+            Some body_other_cs
+
 
              
 let expand' ep t =

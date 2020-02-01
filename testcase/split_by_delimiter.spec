@@ -49,7 +49,9 @@ let append (l1:list) (l2:list) (v:list) =
              append xs l2 xs_l2 && v = Cons (x, xs_l2)
          )
 
-                
+
+
+
 let[@spec split][@mu] split (l:list) (del:int) (v:listlist)
   =
   Exists ((l':list),

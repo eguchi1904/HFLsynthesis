@@ -232,7 +232,7 @@ let rec formula2z3 (ctx:context) (smap:sort_map) (emap:id_expr_map) (fmap:id_fun
  |Formula.Member (e1,e2) ->
     let z_e1, z_s1 = formula2z3 ctx smap emap fmap e1 in
     let z_e2, z_s2 = formula2z3 ctx smap emap fmap e2 in
-    (Set.mk_membership ctx z_e1 z_e2), z_s1
+    (Set.mk_membership ctx z_e1 z_e2), (Boolean.mk_sort ctx)
     
  |Formula.Subset (e1,e2) ->
     let z_e1, z_s1 = formula2z3 ctx smap emap fmap e1 in

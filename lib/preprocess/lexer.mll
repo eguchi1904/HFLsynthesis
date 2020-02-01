@@ -85,7 +85,8 @@ rule main = parse
 { NU }
 | "mu"
 { MU }
-
+| "in"
+{ IN }
 
 | "Base" 
  { BASE }

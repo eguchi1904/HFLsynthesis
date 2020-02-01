@@ -1,6 +1,7 @@
 
 * できても良さそうな候補
 ** sort
+
 let rec insert x l =
   match l with
   |[] -> [x]

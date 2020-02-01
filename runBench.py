@@ -4,9 +4,19 @@ import re
 TEST_DIR = "testcase/"
 BINARY_PATH = "bin/fptSynthesizer.bc"
 
-BENCHMARKS =[('fib.spec', ['-p', '1', '-e', '7']),
+# 一先ず
+BENCHMARKS =[
+             ('listDelete.spec',['-p', '2', '-e', '7']),
+             ('listAppend.spec',['-p', '2', '-e', '7']),
+             ('rep.spec',['-p', '2', '-e', '7']),
+             ('sum.spec',['-p', '2', '-e', '7']),
+             ('accSum.spec',['-p', '2', '-e', '5']),
+             ('sumList.spec',['-p', '2', '-e', '5']),
+             ('fib.spec', ['-p', '1', '-e', '7']),
              ('tfib.spec', ['-p', '1', '-e', '5']),
+             ('memofib.spec', ['-p', '2', '-e', '5'])
              ]
+
 
 
 def is_success(proc_stdout):
@@ -20,6 +30,15 @@ def extract_time(proc_stdout):
     else:
         raise Exception("extract_time")
 
+def extract_solver_time(proc_stdout):
+    matchObj = re.search(r'z3 time:(.*)',proc_stdout)
+    if matchObj:
+        time =matchObj.group(1) 
+        return time
+    else:
+        raise Exception("extract_time")
+        
+
 def runSynthesizer(name, args):
     proc = subprocess.run(['dune', 'exec', '--',
                     BINARY_PATH,
@@ -32,28 +51,39 @@ def runSynthesizer(name, args):
     proc_stdout = proc.stdout.decode("utf8")
     if is_success(proc_stdout):
         time = extract_time(proc_stdout)
-        return time
+        solver_time = extract_solver_time(proc_stdout)
+        return {"total":time, "solver":solver_time}
     else:
         return None
         
     
-def print_result(results_list):
+def print_result(result):
+    if result["time"]:
+        print("%s:  %s    %s" %(result["name"],
+                                result["time"]["total"],
+                                result["time"]["solver"]) )
+    else:
+        print("%s:  TIMEOUT" %result[name] )
+
+def print_result_list(results_list):
     for result in results_list:
-        if result["time"]:
-            print("%s:  %s" %(result["name"], result["time"]) )
-        else:
-            print("%s:  TIMEOUT" %result[name] )
+        print_result(result)
+        
             
 def runBenchmarks(benchmarks):
     result_list = []
     for (bench, args) in benchmarks:
         time_of_bench = runSynthesizer(bench, args)
         if time_of_bench:
-            result_list.append( {"name":bench,"time":time_of_bench})
+            result =  {"name":bench,"time":time_of_bench}
         else:
-            result_list.append( {"name":bench,"time":None})                
+            result =  {"name":bench,"time":None}
 
-    print_result(result_list)
+        print_result(result)
+        result_list.append( result)
+        
+    print("--------------------------------------------------")
+    print("benchmark end")
 
         
 if __name__ == '__main__':
