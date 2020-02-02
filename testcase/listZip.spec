@@ -2,7 +2,7 @@ type list =
   |Nil
   |Cons of int * list
          
-let qualifier = [(fun (x:int) (y:int) -> x = y);(fun (x:list) (y:list)-> x = y)] 
+
 
 let[@measure][@termination] rec _len: list -> int = function
   |Nil -> 0

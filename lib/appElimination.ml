@@ -514,7 +514,7 @@ and is_fowarded_by_expansion
   ((List.exists
     before_exists               (* before existsで解決したものがある *)
     ~f:(fun (x,_) -> M.mem x sita_after))
-  && (List.for_all              (* new_existsが、before_existsの解決に使われている *)
+  && (List.exists              (* new_existsが、before_existsの解決に使われている *)
         new_exists
         ~f:(fun (new_exist, _) ->
           List.exists

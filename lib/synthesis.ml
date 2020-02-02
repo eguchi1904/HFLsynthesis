@@ -335,7 +335,7 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
            let () = Printf.fprintf Log.log_cha "enumerate match %s:\n"
                                    (Program.to_string_e scrutinee_e)
            in           
-           if Program.size_e scrutinee_e <= 1 then None
+           if Program.size_e scrutinee_e <= 0 then None
            else if is_constructor scrutinee_e then None
            else
              let l = Id.genid "a" in

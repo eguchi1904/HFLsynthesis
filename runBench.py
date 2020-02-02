@@ -14,7 +14,11 @@ BENCHMARKS =[
              ('sumList.spec',['-p', '2', '-e', '5']),
              ('fib.spec', ['-p', '1', '-e', '7']),
              ('tfib.spec', ['-p', '1', '-e', '5']),
-             ('memofib.spec', ['-p', '2', '-e', '5'])
+             ('memofib.spec', ['-p', '2', '-e', '5']),
+             ('sort.spec', ['-p', '2', '-e', '5']),
+             ('insert.spec', ['-p', '2', '-e', '5']),
+             ('listZip.spec',['-p', '2', '-e', '5']),
+             ('fact.spec', ['-p', '2', '-e', '7']),
              ]
 
 
