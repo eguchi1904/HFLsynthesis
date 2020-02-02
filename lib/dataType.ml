@@ -121,7 +121,8 @@ module Env = struct
       []
       args
   |> BaseLogic.and_list
-    
+
+
   let add_measure_case
         t
         measure_name
@@ -207,6 +208,18 @@ module Env = struct
       assert (formula_case.constructor = cons);
       formula_case
     |None -> invalid_arg ("constructor "^(Id.to_string_readable cons)^" not defined")
+
+  let find_measure_case t (`DataS data) measure_name cons_name =
+    match Hashtbl.find_opt t.dataMeasuresTbl (Id.to_int data) with
+    |None -> None
+    |Some measure_list ->
+      match List.find_opt (fun (measure:measure) -> measure.name = measure_name) measure_list with
+      |None -> None
+      |Some measure ->
+        List.find_opt
+          (fun (f_case:formulaCase) -> f_case.constructor = cons_name)
+          measure.matchCases
+        
 
   let termination_measure t (`DataS data) =
     match Hashtbl.find_opt t.dataMeasuresTbl (Id.to_int data) with

@@ -50,7 +50,7 @@ module Env:sig
 
   type t
 
-  val global_ref: t ref
+  val global_ref: t ref         (* 妥協*)
 
   val init: unit -> t
 
@@ -69,6 +69,8 @@ module Env:sig
   val list_constructor: t -> Id.t ->  constructor list
 
   val measure_constraint_of_constructor: t -> [`DataS of Id.t] -> Id.t -> formulaCase
+
+  val find_measure_case: t -> [< `DataS of Id.t ] -> Id.t -> Id.t -> formulaCase option
     
   (* list なら、 len  など、
      停止性を保証するために使って良い下限のあるint型を返すmeasure

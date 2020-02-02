@@ -53,11 +53,11 @@ end = struct
     let open Program in
     match b with
     |PIf (_, b1, b2) ->
-      max (size b1) (size b2)
+      1+ (max (size b1) (size b2))
     |PMatch(_, _, cases) ->
-      List.fold_left
-        (fun acc case -> max acc (size case.body))
-        1 cases
+      1 + (List.fold_left
+             (fun acc case -> max acc (size case.body))
+             1 cases)
     |PFail |PHole |PE _ -> 1
         
         
@@ -166,7 +166,7 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
 
      let gen_e_term ep penv abduction_candidate sort spec =
        GenEterms.f ep penv abduction_candidate sort spec
-       |> Seq.hd
+
 
 
 
@@ -180,30 +180,31 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                                 
        
      let rec gen_b_term: Context.t ->  Hfl.Equations.t -> PathEnv.t -> AbductionCandidate.t -> Hfl.sort -> spec:Hfl.qhorn list 
-                         -> Program.b option
+                         -> Program.b Seq.t
        =
        (fun ctx ep penv abduction_candidate sort ~spec ->
-         match gen_branch_by_abduction ctx ep penv abduction_candidate sort ~spec with
-         |Some b -> Some b
-         |None ->
-           if Context.size ctx > 4 then None else
-             (* enumeration of match or use othere template  *)
-             (match gen_match_by_scrutinee_enumeration
+         if Context.size ctx > 4 then Seq.empty
+         else
+         let b_by_abduction_seq =
+           gen_branch_by_abduction ctx ep penv abduction_candidate sort ~spec
+         in
+         let b_by_scrutinee_enumeration = 
+            gen_match_by_scrutinee_enumeration
                       ctx ep penv abduction_candidate sort ~spec
-              with
-              |Some b -> Some b
-              |None ->
-                invalid_arg "gen_b_term: not impl yet:(use template)"
-             )
+         in
+         Seq.append
+           b_by_abduction_seq
+           b_by_scrutinee_enumeration
        )
+                (* invalid_arg "gen_b_term: not impl yet:(use template)" *)
 
-
-     and gen_branch_by_abduction = 
+     and gen_branch_by_abduction  = 
        (fun ctx ep penv abduction_candidate sort ~spec ->
-         match gen_e_term ep penv abduction_candidate sort spec with
-         |Some (e, _, abduction_candidate) ->
-           let conds = AbductionCandidate.get abduction_candidate in
-           if conds = [] then Some (Program.PE e)
+         Seq.concat_map
+           (gen_e_term ep penv abduction_candidate sort spec)
+        ~f:(fun (e, _, abduction_candidate) -> (* conditionと一緒に探している *)
+          let conds = AbductionCandidate.get abduction_candidate in
+           if conds = [] then Seq.singleton (Program.PE e)
            else
              begin
                match inspect_condition_is_equal_to_match conds with
@@ -221,10 +222,10 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                                         ~scrutineeInfo:(x, (Program.Term (App {head = x; args = []})),None, i, other_cons)
                                         sort ~spec                 
                   with
-                  |None -> None
+                  |None -> Seq.empty
                   |Some other_cases -> 
                     let open Program in
-                    Some (PMatch (x, (Term (App {head = x; args = []})),
+                    Seq.singleton (PMatch (x, (Term (App {head = x; args = []})),
                                   scon_case::other_cases)
                  ))
                |None ->
@@ -239,15 +240,18 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                  let abduction_candidate =
                    AbductionCandidate.initialize data_env penv' qualifiers ~new_vars:[] abduction_candidate
                  in
-                 match gen_b_term ctx ep penv' abduction_candidate sort ~spec with
-                 |None -> None
-                 |Some b_else -> 
-                   let open Program in
-                   Some (PIf ((Term (Formula (BaseLogic.and_list conds))),
-                              (PE e),
-                              b_else))
+                 let b_else_seq = gen_b_term ctx ep penv' abduction_candidate sort ~spec in
+                 Seq.map
+                   b_else_seq
+               ~f:(fun b_else -> 
+                 let open Program in
+                 (PIf ((Term (Formula (BaseLogic.and_list conds))),
+                       (PE e),
+                       b_else)))
              end
-         |None -> None)
+        )
+       )
+
 
 
        
@@ -292,7 +296,9 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
                    AbductionCandidate.initialize
                      data_env penv qualifiers ~new_vars abduction_candidate
                  in
-                 match gen_b_term ctx ep penv abduction_candidate sort ~spec with
+                 match gen_b_term ctx ep penv abduction_candidate sort ~spec
+                     |> Seq.hd  (* ここで複数を列挙する意味なし *)
+                 with
                  |None -> None
                  |Some body ->
                    let ctx = Context.add_b body ctx in
@@ -329,13 +335,13 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
            data_env
            []
        in
-       Seq.find_map
+       Seq.filter_map
          (Seq.round_robin scrutinee_e_seq)
          ~f:(fun (data_name, (scrutinee_e, e_prop, abduction_candidate)) ->
            let () = Printf.fprintf Log.log_cha "enumerate match %s:\n"
                                    (Program.to_string_e scrutinee_e)
            in           
-           if Program.size_e scrutinee_e <= 0 then None
+           if Program.size_e scrutinee_e <= 1 then None
            else if is_constructor scrutinee_e then None
            else
              let l = Id.genid "a" in
@@ -479,7 +485,9 @@ let generator data_env qualifiers ~e_max:e_max_size ~scrutinee_max_size=
             let penv = PathEnv.add_condition_list cs penv in
             let sort = (Hfl.return_sort sort:> Hfl.sort) in
             let ctx = Context.empty in
-            (match  gen_b_term ctx ep penv abduction_candidate sort ~spec:[`Horn ([], c)] with
+            (match  gen_b_term ctx ep penv abduction_candidate sort ~spec:[`Horn ([], c)]
+                    |> Seq.hd
+             with
             |None -> raise (Not_found)
             |Some b -> 
             Program.PRecFun (name, args, b))

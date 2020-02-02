@@ -171,7 +171,10 @@ let make
  {equations = ep;
    exists = exists;
    sharedPremise = premise;
-   horns = horns}
+   horns = List.map
+             (fun (`Horn (cs, c)) ->
+               `Horn  ((List.map ExpandMeasure.f cs), ExpandMeasure.f c))
+             horns}
 (* |> toplevel_case_split *)
 
 
